@@ -275,13 +275,17 @@
         loginError.textContent = 'Entrando...';
         const email = document.getElementById('loginEmail').value.trim();
         const senha = document.getElementById('loginPassword').value;
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
-        if (error) {
-            loginError.textContent = 'E-mail ou senha inválidos.';
-            return;
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
+            if (error) {
+                loginError.textContent = error.message || 'Não foi possível entrar.';
+                return;
+            }
+            loginError.textContent = '';
+            abrirPainel(data.session);
+        } catch (error) {
+            loginError.textContent = 'Não foi possível conectar ao serviço de login.';
         }
-        loginError.textContent = '';
-        abrirPainel(data.session);
     }
 
     function abrirPainel(session) {
