@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Beautes - Kanban & Agenda</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* =====================================================================
+           TEMA GERAL E RESPONSIVIDADE (OTIMIZADO PARA IPHONE)
+           ===================================================================== */
+        :root {
+            --bg: #0f1117; --surface: #1a1f2e; --card: #222736; --border: #2a3042; 
+            --text: #e2e8f0; --muted: #64748b; --accent: #d4af37; --success: #10b981; --danger: #ef4444;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+        .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+        .logo h1 { font-size: 18px; color: var(--accent); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+        .logo p { font-size: 12px; color: var(--muted); }
+        .topbar-actions { display: flex; gap: 10px; align-items: center; }
+        
+        button { cursor: pointer; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; padding: 10px 16px; transition: all 0.2s; white-space: nowrap; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { opacity: 0.8; }
+        .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+        .filters { background: rgba(26,31,46,0.8); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+        .filter-input, .filter-select { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; }
+        .filter-input:focus { border-color: var(--accent); }
+        input[type="date"]::-webkit-calendar-picker-indicator, input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
+        .date-filters { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+
+        .board { display: flex; gap: 16px; padding: 20px; overflow-x: auto; flex: 1 1 auto; align-items: flex-start; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; min-height: 0; }
+        .column { min-width: 300px; width: 300px; background: var(--surface); border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 100%; flex-shrink: 0; }
+        .col-header { padding: 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; background: var(--surface); border-radius: 12px 12px 0 0; }
+        .col-label { display: flex; align-items: center; gap: 8px; }
+        .col-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .col-count { background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 20px; font-size: 11px; margin-left: auto; }
+        
+        .col-body { padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 80px; -webkit-overflow-scrolling: touch; }
+        .empty-col { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; font-style: italic; }
+
+        .card { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 15px; cursor: grab; position: relative; transition: all 0.2s; }
+        .card:hover { border-color: rgba(212, 175, 55, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .card-name { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;}
+        .card-phone { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+        .info-row { font-size: 12px; color: #ddd; margin-bottom: 6px; }
+        
+        .tags-container { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; margin-bottom: 12px; }
+        .tag { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .tag-contrato-ok { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+        .tag-contrato-pendente { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+        .btn-group { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;}
+        .btn-card { flex: 1; text-align: center; padding: 8px; font-size: 11px; font-weight: bold; border-radius: 6px; cursor: pointer; text-decoration: none; border: 1px solid var(--border); color: #ccc; background: transparent; transition: 0.2s;}
+        .btn-card:hover { background: #333; color: #fff; }
+        .btn-card.wa { background: #166534; color: #fff; border: none; }
+        .btn-card.confirm { border-color: var(--accent); color: var(--accent); }
+        .btn-card.confirm:hover { background: var(--accent); color: #000; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(4px); }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; width: 90%; max-width: 500px; padding: 25px; max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 20px; }
+        .modal-header h2 { color: var(--accent); font-size: 18px; }
+        .modal-close { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; }
+
+        .login-screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(circle at top right, #293044 0, var(--bg) 48%); }
+        .login-card { width: min(100%, 390px); background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 14px; padding: 30px 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+        .login-brand { color: var(--accent); font-size: 24px; letter-spacing: 2px; font-weight: 700; margin-bottom: 6px; }
+        .login-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 26px; }
+        .login-card .form-group { margin-bottom: 16px; }
+        .login-card .form-control { min-height: 46px; font-size: 16px; }
+        .login-error { min-height: 18px; color: #f87171; font-size: 12px; margin: 12px 0 0; text-align: center; }
+        .btn-logout { padding: 7px 10px; font-size: 11px; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+        .form-control { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 13px; outline: none; }
+
+        .agenda-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+        .agenda-item { background: var(--bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+        .agenda-item-info h4 { color: var(--accent); font-size: 15px; margin-bottom: 5px; }
+        .agenda-item-info p { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+        .agenda-item-msg { background: rgba(255,255,255,0.03); padding: 10px; border-left: 2px solid var(--accent); border-radius: 4px; font-size: 12px; color: #ddd; margin-top: 10px; font-style: italic; }
+        .agenda-status { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; white-space: nowrap; }
+        .status-fechado { background: rgba(16,185,129,0.15); color: #34d399; }
+        .status-validar { background: rgba(239,68,68,0.15); color: #f87171; }
+
+        .contract-text { background: var(--bg); padding: 15px; border-radius: 6px; font-size: 11px; height: 120px; overflow-y: auto; margin-bottom: 15px; border: 1px solid var(--border); color: #aaa; text-align: justify; }
+        .canvas-wrapper { border: 2px dashed #444; background: #000; border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
+        canvas#signatureCanvas { display: block; width: 100%; height: 180px; cursor: crosshair; touch-action: none; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        /* =====================================================================
+           AJUSTES ESPECÍFICOS PARA DISPOSITIVOS MÓVEIS (CELULARES/IPHONES)
+           ===================================================================== */
+        @media (max-width: 768px) {
+            .topbar { flex-direction: column; align-items: stretch; padding: 15px; gap: 15px; }
+            .topbar-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+            .topbar-actions button { width: 100%; margin: 0; display: flex; align-items: center; justify-content: center; }
+            #btnAtualizar { grid-column: span 2; }
+            
+            .filters { flex-direction: column; align-items: stretch; gap: 10px; }
+            .filter-input, .filter-select { width: 100%; }
+            .date-filters { width: 100%; flex-direction: row; justify-content: space-between; margin-left: 0; }
+            .date-filters input { flex: 1; min-width: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<section class="login-screen" id="loginScreen">
+    <form class="login-card" id="loginForm">
+        <div class="login-brand">BEAUTES</div>
+        <p class="login-subtitle">Acesso ao painel de atendimento</p>
+        <div class="form-group">
+            <label for="loginEmail">E-mail</label>
+            <input type="email" id="loginEmail" class="form-control" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+            <label for="loginPassword">Senha</label>
+            <input type="password" id="loginPassword" class="form-control" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; min-height: 46px;">Entrar</button>
+        <p class="login-error" id="loginError" role="alert"></p>
+    </form>
+</section>
+
+<main id="appContent" hidden>
+
+<div class="topbar">
+    <div class="logo">
+        <h1>BEAUTES</h1>
+        <p>Pipeline IA Automático</p>
+    </div>
+    <div class="topbar-actions">
+        <button class="btn-ghost" onclick="abrirAgenda()" style="border-color: var(--accent); color: var(--accent);">📅 Agenda</button>
+        <button class="btn-ghost" onclick="abrirModal('modalNovoCliente')">➕ Cliente</button>
+        <button class="btn-primary" id="btnAtualizar" onclick="carregarDados()">🔄 Atualizar Dados</button>
+        <button class="btn-ghost btn-logout" onclick="encerrarSessao()">Sair</button>
+    </div>
+</div>
+
+<div class="filters">
+    <input type="text" id="searchInput" class="filter-input" placeholder="🔍 Buscar Nome..." oninput="renderizarKanban()">
+    <select id="statusFilter" class="filter-select" onchange="renderizarKanban()">
+        <option value="ALL">📋 Status (Todos)</option>
+        <option value="fechado">🏆 Fechados</option>
+        <option value="pendente_contrato">⚠ Pendentes de Contrato</option>
+    </select>
+    <div class="date-filters">
+        <input type="date" id="dateStart" class="filter-input" onchange="renderizarKanban()">
+        <span style="color: #aaa; font-size: 13px;">até</span>
+        <input type="date" id="dateEnd" class="filter-input" onchange="renderizarKanban()">
+    </div>
+</div>
+
+<div class="board" id="boardKanban"><div class="empty-col" id="painelStatus">Carregando dados...</div></div>
+
+<!-- MODAIS -->
+<!-- Modal Agenda -->
+<div id="modalAgenda" class="modal-overlay" onclick="fecharModalSeClicarFora(event, 'modalAgenda')">
+    <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-header">
+            <h2>📅 Agenda de Clientes</h2>
+            <button class="modal-close" onclick="fecharModal('modalAgenda')">&times;</button>
+        </div>
+        <input type="text" id="searchAgenda" class="filter-input" placeholder="🔍 Buscar cliente na agenda..." oninput="renderizarAgenda()" style="width: 100%; margin-bottom: 15px;">
+        <div id="listaAgenda" class="agenda-list"></div>
+    </div>
+</div>
+
+<!-- Modal Confirmar Agendamento -->
+<div id="modalConfirmarData" class="modal-overlay" onclick="fecharModalSeClicarFora(event, 'modalConfirmarData')">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h2>Confirmar Horário</h2>
+            <button class="modal-close" onclick="fecharModal('modalConfirmarData')">&times;</button>
+        </div>
+        <input type="hidden" id="confirmRemoteJid">
+        <p style="font-size: 12px; color: var(--muted); margin-bottom: 15px;">Defina a data e hora em que o cliente será atendido na clínica.</p>
+        <div class="form-group">
+            <label>Data e Hora do Procedimento</label>
+            <input type="datetime-local" id="dataEscolhida" class="form-control" required>
+        </div>
+        <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="enviarConfirmacao()">Salvar e Avisar Cliente</button>
+    </div>
+</div>
+
+<!-- Modal Contrato -->
+<div id="modalContrato" class="modal-overlay" onclick="fecharModalSeClicarFora(event, 'modalContrato')">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Termo de Consentimento</h2>
+            <button class="modal-close" onclick="fecharModal('modalContrato')">&times;</button>
+        </div>
+        <input type="hidden" id="contratoRemoteJid">
+        <div class="contract-text">
+            <strong>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO - CLÍNICA BEAUTES</strong><br><br>
+            Declaro estar ciente dos termos de realização do procedimento estético acordado. Confirmo que recebi as orientações pré e pós-procedimento e efeitos colaterais.<br><br>
+            Autorizo a realização do procedimento e a coleta de registros fotográficos de forma estritamente profissional.<br><br>
+            Ao assinar digitalmente, confirmo minha concordância com os termos.
+        </div>
+        <div class="form-group"><label>Assine na área abaixo:</label></div>
+        <div class="canvas-wrapper"><canvas id="signatureCanvas" width="450" height="180"></canvas></div>
+        <div style="display: flex; gap: 10px;">
+            <button type="button" class="btn-ghost" style="flex: 1;" onclick="limparAssinatura()">Limpar</button>
+            <button type="button" class="btn-primary" style="flex: 2;" onclick="salvarAssinaturaLead()">Salvar Assinatura</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Cliente -->
+<div id="modalNovoCliente" class="modal-overlay" onclick="fecharModalSeClicarFora(event, 'modalNovoCliente')">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Novo Lead Manual</h2>
+            <button class="modal-close" onclick="fecharModal('modalNovoCliente')">&times;</button>
+        </div>
+        <form id="formNovoCliente" onsubmit="salvarNovoCliente(event)">
+            <div class="form-group"><label>Nome do Cliente</label><input type="text" id="leadNome" class="form-control" required></div>
+            <div class="form-group"><label>Telefone / WhatsApp</label><input type="text" id="leadPhone" class="form-control" required></div>
+            <div class="form-group"><label>Serviço Desejado</label><input type="text" id="leadServico" class="form-control"></div>
+            <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">Salvar no Pipeline</button>
+        </form>
+    </div>
+</div>
+
+</main>
+
+<script>
+    const API_URL_GET = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-dashboard'; 
+    const API_URL_POST = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-confirmar';
+    const SUPABASE_URL = 'https://foxsxchuwguyahimkxfd.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    let clientesGlobais = [];
+    let primeiraCarga = true;
+    let intervaloAtualizacao;
+    let sessaoAtual = null;
+    
+    const configColunas = [
+        { id: 'novos_leads', label: '🌱 Novos Leads', cor: '#6366f1' },
+        { id: 'qualificacao', label: '🎯 Qualificação', cor: '#8b5cf6' },
+        { id: 'aguardando_validacao', label: '🚨 Validar PIX/Agenda', cor: '#ef4444' },
+        { id: 'fechado', label: '🏆 Fechado', cor: '#10b981' }
+    ];
+
+    window.onload = () => { inicializarLogin(); inicializarCanvas(); };
+
+    async function inicializarLogin() {
+        const loginForm = document.getElementById('loginForm');
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) abrirPainel(session);
+        loginForm.addEventListener('submit', (event) => {
+            entrar(event);
+        });
+        supabaseClient.auth.onAuthStateChange((event, sessionAtualizada) => {
+            if (event === 'SIGNED_OUT') encerrarSessao(false);
+            if (event === 'SIGNED_IN' && sessionAtualizada) abrirPainel(sessionAtualizada);
+        });
+    }
+
+    async function entrar(event) {
+        event.preventDefault();
+        const loginError = document.getElementById('loginError');
+        loginError.textContent = 'Entrando...';
+        const email = document.getElementById('loginEmail').value.trim();
+        const senha = document.getElementById('loginPassword').value;
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
+        if (error) {
+            loginError.textContent = 'E-mail ou senha inválidos.';
+            return;
+        }
+        loginError.textContent = '';
+        abrirPainel(data.session);
+    }
+
+    function abrirPainel(session) {
+        sessaoAtual = session;
+        document.getElementById('loginScreen').hidden = true;
+        document.getElementById('appContent').hidden = false;
+        carregarDados();
+        clearInterval(intervaloAtualizacao);
+        intervaloAtualizacao = setInterval(carregarDados, 15000);
+    }
+
+    async function encerrarSessao(sairDoSupabase = true) {
+        if (sairDoSupabase) await supabaseClient.auth.signOut();
+        sessaoAtual = null;
+        clearInterval(intervaloAtualizacao);
+        document.getElementById('appContent').hidden = true;
+        document.getElementById('loginScreen').hidden = false;
+        document.getElementById('loginForm').reset();
+    }
+
+    // =====================================================================
+    // SISTEMA DE CONVERSÃO DE DATAS À PROVA DE ERROS DO SAFARI (iOS)
+    // =====================================================================
+    function converterDataSegura(dataString) {
+        if (!dataString) return null;
+        let d = new Date(String(dataString).replace(' ', 'T'));
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    function formatarDataHoraString(dataString) {
+        const d = converterDataSegura(dataString);
+        if (!d) return '';
+        const dia = String(d.getDate()).padStart(2, '0');
+        const mes = String(d.getMonth() + 1).padStart(2, '0');
+        const ano = d.getFullYear();
+        const hora = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${dia}/${mes}/${ano} às ${hora}:${min}`;
+    }
+
+    function formatarApenasDataString(dataString) {
+        const d = converterDataSegura(dataString);
+        if (!d) return '';
+        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    }
+
+    async function carregarDados() {
+        const btn = document.getElementById('btnAtualizar');
+        const board = document.getElementById('boardKanban');
+        btn.innerHTML = '⏳...';
+        if (primeiraCarga) board.innerHTML = '<div class="empty-col" id="painelStatus">Carregando dados...</div>';
+        
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 20000);
+            const response = await fetch(API_URL_GET, { method: 'GET', cache: 'no-store', signal: controller.signal, headers: { Authorization: `Bearer ${sessaoAtual.access_token}` } });
+            clearTimeout(timeout);
+            if (!response.ok) throw new Error(`Servidor respondeu HTTP ${response.status}`);
+            const rawData = await response.json();
+
+            const normalizarCliente = (item) => {
+                const cliente = item.json || item || {};
+                let rawStatus = String(cliente.status || cliente.stage || 'novos_leads').toLowerCase();
+                let colunaFinal = 'novos_leads';
+                if (rawStatus.includes('atendimento inicial') || rawStatus.includes('novos')) colunaFinal = 'novos_leads';
+                else if (rawStatus.includes('qualifica')) colunaFinal = 'qualificacao';
+                else if (rawStatus.includes('validacao') || rawStatus.includes('pagamento') || rawStatus.includes('aguardando humano')) colunaFinal = 'aguardando_validacao';
+                else if (rawStatus.includes('agendado') || rawStatus.includes('confirmado') || rawStatus.includes('fechado')) colunaFinal = 'fechado';
+
+                return {
+                    ...cliente,
+                    nome: cliente.nome || cliente.contact_name || 'Desconhecido',
+                    telefone: cliente.telefone || cliente.contact_handle,
+                    servico: cliente.servico || 'Em atendimento...',
+                    data_solicitacao: cliente.data_solicitacao || cliente.created_at,
+                    data_agendamento: cliente.data_agendamento,
+                    remote_jid: cliente.remote_jid || cliente.external_conversation_id,
+                    ultima_mensagem_cliente: cliente.ultima_mensagem_cliente || '',
+                    coluna_id: colunaFinal,
+                    contrato_assinado: cliente.contrato_assinado || false,
+                    assinatura_url: cliente.assinatura_url || ''
+                };
+            };
+
+            const registros = Array.isArray(rawData) ? rawData : (rawData && rawData.records) ? rawData.records : null;
+            if (registros) {
+                clientesGlobais = registros.map(normalizarCliente).filter(c => c.nome !== 'Desconhecido' && c.telefone);
+            }
+
+            renderizarKanban();
+            if (document.getElementById('modalAgenda').classList.contains('active')) renderizarAgenda();
+        } catch (error) {
+            console.error('Erro ao carregar painel:', error);
+            if (!clientesGlobais.length) {
+                const mensagem = error.name === 'AbortError'
+                    ? 'O servidor demorou para responder. Toque em Atualizar Dados.'
+                    : 'Não foi possível carregar os dados. Abra este arquivo no Safari e tente novamente.';
+                board.innerHTML = `<div class="empty-col" id="painelStatus">${mensagem}</div>`;
+            }
+        } finally {
+            primeiraCarga = false;
+            btn.innerHTML = '🔄 Atualizar Dados';
+        }
+    }
+
+    function renderizarKanban() {
+        const board = document.getElementById('boardKanban');
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const statusFil = document.getElementById('statusFilter').value;
+        const dateStart = document.getElementById('dateStart').value;
+        const dateEnd = document.getElementById('dateEnd').value;
+
+        board.innerHTML = '';
+        configColunas.forEach(colConfig => {
+            const clientesNestaColuna = clientesGlobais.filter(c => {
+                if (c.coluna_id !== colConfig.id) return false;
+                if (search && !(`${c.nome} ${c.telefone}`.toLowerCase().includes(search))) return false;
+                if (statusFil === 'fechado' && c.coluna_id !== 'fechado') return false;
+                if (statusFil === 'pendente_contrato' && c.contrato_assinado) return false;
+                
+                if (dateStart || dateEnd) {
+                    const dLead = converterDataSegura(c.data_solicitacao);
+                    if (!dLead) return false;
+                    if (dateStart && dLead < converterDataSegura(dateStart + 'T00:00:00')) return false;
+                    if (dateEnd && dLead > converterDataSegura(dateEnd + 'T23:59:59')) return false;
+                }
+                return true;
+            });
+
+            const colEl = document.createElement('div');
+            colEl.className = 'column';
+            colEl.innerHTML = `
+                <div class="col-header">
+                    <div class="col-label">
+                        <div class="col-dot" style="background:${colConfig.cor}"></div>
+                        <span>${colConfig.label}</span>
+                    </div>
+                    <span class="col-count">${clientesNestaColuna.length}</span>
+                </div>
+                <div class="col-body" id="col-${colConfig.id}">
+                    ${clientesNestaColuna.length === 0 ? '<div class="empty-col">Nenhum lead aqui</div>' : ''}
+                    ${clientesNestaColuna.map(c => gerarHTMLCard(c)).join('')}
+                </div>
+            `;
+            board.appendChild(colEl);
+        });
+
+        configColunas.forEach(colConfig => {
+            const colBody = document.getElementById(`col-${colConfig.id}`);
+            if (colBody) {
+                new Sortable(colBody, {
+                    group: 'pipeline_beautes', animation: 150, delay: 50, delayOnTouchOnly: true,
+                    onEnd: function (evt) {
+                        const remoteJid = evt.item.getAttribute('data-id');
+                        const novaColunaId = evt.to.id.replace('col-', '');
+                        const cliente = clientesGlobais.find(c => c.remote_jid === remoteJid);
+                        if (cliente && cliente.coluna_id !== novaColunaId) {
+                            cliente.coluna_id = novaColunaId;
+                            renderizarKanban();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    function gerarHTMLCard(c) {
+        let linkWhats = c.telefone ? String(c.telefone).replace(/\D/g, '') : '';
+        if(!linkWhats.startsWith('55')) linkWhats = '55' + linkWhats;
+
+        const strDataAgenda = formatarDataHoraString(c.data_agendamento);
+        const tagAgendamento = strDataAgenda 
+            ? `<div class="info-row" style="color: var(--success); font-weight: bold;">📅 Data: ${strDataAgenda}</div>`
+            : '';
+
+        const badgeContrato = c.contrato_assinado 
+            ? `<span class="tag tag-contrato-ok">✍️ Contrato Assinado</span>`
+            : `<span class="tag tag-contrato-pendente">⚠️ Sem Contrato</span>`;
+
+        const tagCriacao = formatarApenasDataString(c.data_solicitacao);
+
+        return `
+            <div class="card" data-id="${c.remote_jid}">
+                <div class="card-name">${c.nome} <span style="font-size: 10px; color: var(--muted); font-weight: normal;">${tagCriacao}</span></div>
+                <div class="card-phone">📱 ${c.telefone}</div>
+                <div class="info-row"><strong>Serviço:</strong> ${c.servico}</div>
+                ${tagAgendamento}
+                <div class="tags-container">${badgeContrato}</div>
+                <div class="btn-group">
+                    <a href="https://wa.me/${linkWhats}" target="_blank" class="btn-card" style="background: #166534; color: #fff;">WhatsApp</a>
+                    <button class="btn-card" onclick="abrirModalContrato('${c.remote_jid}')">Assinar</button>
+                    <button class="btn-card confirm" onclick="abrirModalConfirmacao('${c.remote_jid}')">Agendar</button>
+                </div>
+            </div>
+        `;
+    }
+
+    function abrirModalConfirmacao(remoteJid) { document.getElementById('confirmRemoteJid').value = remoteJid; document.getElementById('dataEscolhida').value = ''; abrirModal('modalConfirmarData'); }
+    async function enviarConfirmacao() {
+        const remoteJid = document.getElementById('confirmRemoteJid').value; const dataIso = document.getElementById('dataEscolhida').value;
+        if(!dataIso) { alert('Selecione uma data e hora.'); return; }
+        try {
+            const res = await fetch(API_URL_POST, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessaoAtual.access_token}` }, body: JSON.stringify({ remote_jid: remoteJid, data_agendamento: dataIso }) });
+            if(res.ok) { alert(`✅ Confirmado!`); fecharModal('modalConfirmarData'); carregarDados(); }
+        } catch(e) { alert("Erro de conexão."); }
+    }
+
+    function abrirAgenda() { renderizarAgenda(); abrirModal('modalAgenda'); }
+    function renderizarAgenda() {
+        const container = document.getElementById('listaAgenda'); const termo = document.getElementById('searchAgenda').value.toLowerCase();
+        const lista = clientesGlobais.filter(c => (c.coluna_id === 'aguardando_validacao' || c.coluna_id === 'fechado') && `${c.nome} ${c.servico}`.toLowerCase().includes(termo));
+        if (!lista.length) return container.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 30px;">Nenhum agendamento encontrado.</p>';
+        
+        container.innerHTML = lista.map(c => {
+            const isConf = c.coluna_id === 'fechado';
+            const strData = formatarDataHoraString(c.data_agendamento);
+            const htmlData = strData ? `<p style="margin-top: 8px; color: var(--accent); font-size: 14px; font-weight: bold;">📅 Agendado para: ${strData}</p>` : `<p style="margin-top: 8px; color: var(--danger); font-size: 12px; font-weight: bold;">⚠ Horário pendente</p>`;
+            return `
+                <div class="agenda-item">
+                    <div style="flex: 1; min-width: 200px;">
+                        <div class="agenda-item-info"><h4>${c.nome}</h4><p>📱 ${c.telefone} | 💆‍♀️ <strong>${c.servico}</strong></p>${htmlData}</div>
+                        <div class="agenda-item-msg"><strong>Msg do cliente:</strong><br> "${c.ultima_mensagem_cliente || 'Sem mensagem'}"</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                        <span class="agenda-status ${isConf ? 'status-fechado' : 'status-validar'}">${isConf ? '✅ Confirmado' : '⏳ Aguarda Validação'}</span>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    let canvas, ctx, drawing = false;
+    function inicializarCanvas() {
+        canvas = document.getElementById('signatureCanvas'); if (!canvas) return; ctx = canvas.getContext('2d');
+        ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        const start = (e) => { drawing = true; const pos = getPos(e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); };
+        const move = (e) => { if (drawing) { const pos = getPos(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); e.preventDefault(); } };
+        const end = () => drawing = false;
+        canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); canvas.addEventListener('mouseup', end); canvas.addEventListener('mouseleave', end);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); }, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); canvas.addEventListener('touchend', end);
+    }
+    function getPos(e) { const rect = canvas.getBoundingClientRect(); const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY; return { x: (cx - rect.left) * (canvas.width / rect.width), y: (cy - rect.top) * (canvas.height / rect.height) }; }
+    function limparAssinatura() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    function abrirModalContrato(rJid) { document.getElementById('contratoRemoteJid').value = rJid; limparAssinatura(); const c = clientesGlobais.find(x => x.remote_jid === rJid); if (c && c.assinatura_url) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = c.assinatura_url; } abrirModal('modalContrato'); }
+    function salvarAssinaturaLead() { const rJid = document.getElementById('contratoRemoteJid').value; const c = clientesGlobais.find(x => x.remote_jid === rJid); if (c) { c.assinatura_url = canvas.toDataURL(); c.contrato_assinado = true; renderizarKanban(); fecharModal('modalContrato'); } }
+
+    function salvarNovoCliente(e) { e.preventDefault(); const tel = document.getElementById('leadPhone').value.replace(/\D/g, ''); clientesGlobais.unshift({ nome: document.getElementById('leadNome').value, telefone: tel, servico: document.getElementById('leadServico').value || 'Pendente', data_solicitacao: new Date().toISOString(), remote_jid: `${tel}@s.whatsapp.net`, coluna_id: 'novos_leads', contrato_assinado: false }); renderizarKanban(); fecharModal('modalNovoCliente'); document.getElementById('formNovoCliente').reset(); }
+    function abrirModal(id) { document.getElementById(id).classList.add('active'); }
+    function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
+    function fecharModalSeClicarFora(e, id) { if (e.target.id === id) fecharModal(id); }
+</script>
+</body>
+</html>
