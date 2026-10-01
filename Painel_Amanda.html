@@ -258,11 +258,13 @@
 
     async function inicializarLogin() {
         const loginForm = document.getElementById('loginForm');
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) abrirPainel(session);
-        loginForm.addEventListener('submit', (event) => {
-            entrar(event);
-        });
+        loginForm.addEventListener('submit', entrar);
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) abrirPainel(session);
+        } catch (error) {
+            document.getElementById('loginError').textContent = 'Faça o login para continuar.';
+        }
         supabaseClient.auth.onAuthStateChange((event, sessionAtualizada) => {
             if (event === 'SIGNED_OUT') encerrarSessao(false);
             if (event === 'SIGNED_IN' && sessionAtualizada) abrirPainel(sessionAtualizada);
@@ -279,6 +281,10 @@
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
             if (error) {
                 loginError.textContent = error.message || 'Não foi possível entrar.';
+                return;
+            }
+            if (!data.session) {
+                loginError.textContent = 'A sessão não foi criada. Tente novamente.';
                 return;
             }
             loginError.textContent = '';
