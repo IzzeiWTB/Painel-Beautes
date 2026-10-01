@@ -242,7 +242,9 @@
     const API_URL_POST = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-confirmar';
     const SUPABASE_URL = 'https://foxsxchuwguyahimkxfd.supabase.co';
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK';
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
     let clientesGlobais = [];
     let primeiraCarga = true;
     let intervaloAtualizacao;
