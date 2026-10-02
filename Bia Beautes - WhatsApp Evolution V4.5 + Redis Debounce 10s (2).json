@@ -1,0 +1,1321 @@
+{
+  "name": "Bia Beautes - WhatsApp Evolution V4.5 + Redis Debounce 10s",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "beautes-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        304
+      ],
+      "id": "fc0ba9f0-46d9-4780-94c5-e48e5f547cf1",
+      "name": "Webhook WhatsApp Evolution",
+      "webhookId": "521f97c1-044d-456d-a7fb-8a269961de02"
+    },
+    {
+      "parameters": {
+        "jsCode": "function env(name, fallback = '') { let value = ''; try { value = $env[name] || ''; } catch (e) {} return value || fallback; }\nfunction text(value) { return String(value || '').trim(); }\nconst input = typeof $json.body === 'string' ? JSON.parse($json.body || '{}') : ($json.body || $json);\nconst event = text(input.event || input.type).toLowerCase();\nconst data = input.data || input;\nconst key = data.key || data.message?.key || {};\nconst remoteJid = text(key.remoteJid || key.remoteJidAlt || data.remoteJid);\nconst message = data.message || {};\nconst messageType = text(data.messageType || Object.keys(message)[0] || 'conversation');\nlet messageText = text(message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || message.videoMessage?.caption || message.documentMessage?.caption);\nlet contentType = 'text';\nlet base64 = text(data.base64 || message.base64 || message.audioMessage?.base64);\nif (!messageText && messageType.toLowerCase().includes('audio')) { contentType = 'audio'; messageText = '[audio]'; }\nelse if (!messageText) { contentType = messageType.replace(/Message$/i, '').toLowerCase() || 'unknown'; messageText = '[' + contentType + ']'; }\nconst phone = remoteJid.split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst eventSupported = !event || ['messages.upsert', 'messages.update'].includes(event);\nconst ignoredReason = !eventSupported ? 'event_not_supported' : key.fromMe || data.fromMe ? 'outbound_event' : !remoteJid ? 'missing_remote_jid' : remoteJid.includes('@g.us') || remoteJid === 'status@broadcast' ? 'group_or_status' : !phone ? 'missing_phone' : '';\nreturn { json: { shouldProcess: !ignoredReason, ignoredReason, event, tenant_slug: 'beautes', instance: text(input.instance || input.instanceName || 'Amanda'), remoteJid, phone, messageId: text(key.id || data.id || remoteJid + ':' + Date.now()), contactName: text(data.pushName || data.senderName || phone), messageText, contentType, base64, raw_payload: input, channel_type: 'whatsapp' } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        304
+      ],
+      "id": "b7ff535d-ace5-4c19-860a-fd99d5e636b4",
+      "name": "Normalizar Entrada WhatsApp"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.shouldProcess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        192,
+        304
+      ],
+      "id": "5858d7aa-be99-4b09-8f85-f4a37c437d23",
+      "name": "Mensagem valida?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, ignored: true, reason: $json.ignoredReason || 'ignored' } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        432,
+        480
+      ],
+      "id": "1b4ed929-9304-4697-9585-5dd32697a553",
+      "name": "Responder Evento Ignorado"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ 'beautes:whatsapp:dedup:' + $json.tenant_slug + ':' + $json.messageId }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        432,
+        272
+      ],
+      "id": "915d556a-8766-426b-877c-67b95e9a9b6a",
+      "name": "Consultar Deduplicacao no Redis",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Normalizar Entrada WhatsApp').item.json;\nconst duplicate = Boolean($json.propertyName || $json.value || $json.data);\nreturn { json: { ...original, isDuplicate: duplicate } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        272
+      ],
+      "id": "65b437e3-bd07-4ff3-b20c-41536b362302",
+      "name": "Verificar Duplicidade"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        912,
+        272
+      ],
+      "id": "e792c309-a10c-4b7a-97fe-429b2ec49860",
+      "name": "Mensagem nova?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, duplicate: true, external_message_id: $json.messageId } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        128
+      ],
+      "id": "38746ae3-9271-48d0-b0de-303f08f6e5c4",
+      "name": "Responder Duplicidade"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'beautes:whatsapp:dedup:' + $json.tenant_slug + ':' + $json.messageId }}",
+        "value": "processing",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        400
+      ],
+      "id": "5d8d8f72-25e4-4a1a-bd75-6f5e00e1af70",
+      "name": "Marcar Mensagem no Redis",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { ...$('Verificar Duplicidade').item.json, redis_marked: true } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        400
+      ],
+      "id": "554e510b-7919-4f80-bad2-beb3b440810e",
+      "name": "Restaurar Contexto apos Redis"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $json || {};\nconst conversation = String(base.remoteJid || base.phone || '').trim();\nif (!conversation) return [{ json: { ...base, skip_response: true, _debounce_invalid: true } }];\nconst tenant = 'beautes';\nconst listKey = 'beautes:whatsapp:debounce:list:' + tenant + ':' + conversation;\nconst lockKey = 'beautes:whatsapp:debounce:lock:' + tenant + ':' + conversation;\nconst isMedia = String(base.contentType || '').toLowerCase() !== 'text' || Boolean(base.base64);\nreturn [{ json: { ...base, debounce_list_key: listKey, debounce_lock_key: lockKey, debounce_item: { payload: base, messageText: String(base.messageText || '').trim(), contentType: base.contentType || 'text', has_media: isMedia, messageId: base.messageId || null, received_at: Date.now() }, skip_response: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        704
+      ],
+      "id": "c66d5265-24a3-4f31-844a-d396d89474e6",
+      "name": "Preparar mensagem para debounce"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $json.debounce_list_key }}",
+        "messageData": "={{ JSON.stringify($json.debounce_item) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1872,
+        704
+      ],
+      "id": "039f5456-ad04-4e14-a5ad-bb0af01b95dd",
+      "name": "Redis enfileirar mensagem",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "={{ $json.debounce_lock_key }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        704
+      ],
+      "id": "d6c181da-5ce6-48be-b4cf-0f49b8b129f7",
+      "name": "Redis adquirir líder",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Preparar mensagem para debounce').item.json;\nconst key = base.debounce_lock_key;\nconst value = Number($json[key] ?? $json.value ?? $json.data ?? 0);\nreturn [{ json: { ...base, debounce_lock_value: value, debounce_leader: value === 1 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2352,
+        704
+      ],
+      "id": "09469790-6df9-4f8a-8793-8d1b689841ec",
+      "name": "Consolidar lock Redis"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.debounce_leader }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2592,
+        704
+      ],
+      "id": "2a2ab581-77aa-4393-aa73-d8bf6395ebb8",
+      "name": "É o líder do debounce?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, channel: 'whatsapp', queued: true, debounce: true } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2832,
+        800
+      ],
+      "id": "84b79cc1-f027-4c38-b5de-6f5c879882d4",
+      "name": "Responder WhatsApp enfileirado"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2832,
+        624
+      ],
+      "id": "ea9ba70f-dacb-4972-931a-0f14cf56206e",
+      "name": "Aguardar 10s",
+      "webhookId": "7902d33a-6c87-402c-bf5d-b3d0ad8ea181"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "debounce_messages",
+        "key": "={{ $json.debounce_list_key }}",
+        "keyType": "list",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3072,
+        624
+      ],
+      "id": "5134ec99-d2ee-4536-bc58-dd46486471b2",
+      "name": "Redis ler lote",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leader = $('Consolidar lock Redis').item.json;\nconst raw = $json.data ?? $json.debounce_messages ?? $json.value;\nlet values = [];\nif (Array.isArray(raw)) values = raw;\nelse if (typeof raw === 'string' && raw.trim()) { try { const parsed = JSON.parse(raw); values = Array.isArray(parsed) ? parsed : [raw]; } catch (_) { values = [raw]; } }\nconst entries = values.map((value) => { try { return typeof value === 'string' ? JSON.parse(value) : value; } catch (_) { return null; } }).filter((entry) => entry?.payload);\nif (!entries.length) return [{ json: { ...leader, _redis_debounced: true, skip_response: true } }];\nconst textParts = entries.map((entry) => String(entry.messageText || '').trim()).filter(Boolean);\nconst latest = entries[entries.length - 1];\nconst media = [...entries].reverse().find((entry) => entry.has_media) || latest;\nreturn [{ json: { ...media.payload, messageText: textParts.join('\\n\\n'), debounce_list_key: leader.debounce_list_key, debounce_lock_key: leader.debounce_lock_key, _redis_debounced: true, _debounce_count: entries.length, _debounce_message_ids: entries.map((entry) => entry.messageId).filter(Boolean), skip_response: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3312,
+        624
+      ],
+      "id": "67981301-fcef-42dd-ad98-8c4a6e58e344",
+      "name": "Juntar mensagens fragmentadas"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('Juntar mensagens fragmentadas').item.json.debounce_list_key }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3552,
+        624
+      ],
+      "id": "ab8d0efa-fced-419d-b9dd-176d36997099",
+      "name": "Redis limpar lote",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('Juntar mensagens fragmentadas').item.json.debounce_lock_key }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3792,
+        624
+      ],
+      "id": "e06f08d9-843d-4dfd-b6b2-faa51f080652",
+      "name": "Redis liberar líder",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $('Juntar mensagens fragmentadas').item.json }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4032,
+        624
+      ],
+      "id": "0d859c62-637f-40a8-86af-78b36d081ba1",
+      "name": "Restaurar lote"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.contentType }}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1152,
+        320
+      ],
+      "id": "472fb6ac-cf14-4b34-a7ac-74ba74825b3f",
+      "name": "E audio?"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "options": {
+          "fileName": "audio.ogg",
+          "mimeType": "audio/ogg"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        224
+      ],
+      "id": "2bda706a-98e1-4965-93e9-7cb990831879",
+      "name": "Converter Audio para Arquivo"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1616,
+        224
+      ],
+      "id": "2f612374-8261-4a1b-ae40-e2809e7a2a74",
+      "name": "Transcrever Audio (Gemini)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "elwiCcumckY0POb1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Restaurar lote').item.json;\nconst transcript = String($json.text || $json.transcription || $json.data?.text || '').trim();\nreturn { json: { ...base, messageText: transcript || '[audio sem transcricao]', contentType: 'text', transcript } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2256,
+        224
+      ],
+      "id": "15e34962-e89b-4f3c-a422-30dba3077da9",
+      "name": "Aplicar Transcricao"
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalize(value) { return String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''); }\nfunction hasAny(value, values) { return values.some((item) => value.includes(item)); }\n\nconst message = String($json.messageText || '').trim();\nconst value = normalize(message);\nconst coworkingTerms = ['subloc', 'sub-loc', 'coworking', 'consultorio odont', 'odontolog', 'alugar sala', 'aluguel da sala', 'locacao de sala', 'alugar consultorio', 'aluguel de consultorio', 'sala por hora', 'meia diaria'];\nconst isCoworkingInquiry = coworkingTerms.some((term) => value.includes(normalize(term)));\nlet service = isCoworkingInquiry ? 'coworking_odontologico' : 'estetica'; let stage = 'Atendimento Inicial'; let handoff = false;\n\nif (hasAny(value, ['comprovante', 'pix', 'pago', 'pagamento', 'transferencia', 'recibo'])) { \n  stage = 'Validacao de Pagamento'; \n  handoff = true;\n}\nelse if (hasAny(value, ['agendar', 'agenda', 'horario', 'marcar', 'dia', 'queria ir'])) { \n  stage = 'Agendamento'; \n}\nelse if (hasAny(value, ['humano', 'atendente', 'especialista', 'pessoa'])) { \n  stage = 'Atendimento Humano'; \n  handoff = true;\n}\n\nconst promptText = 'Cliente: ' + $json.contactName\n  + '\\nTelefone: ' + $json.phone\n  + '\\nEtapa identificada: ' + stage\n  + '\\nMensagem: ' + message;\n\nreturn { json: { ...$json, service, stage, handoff, isCoworkingInquiry, promptText: promptText + '\\nInteresse em sublocação do coworking odontológico: ' + (isCoworkingInquiry ? 'sim' : 'não') } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        320
+      ],
+      "id": "8ac0bcaf-865e-46b4-b867-67a5dfb0d792",
+      "name": "Preparar Contexto Beautes"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.promptText }}",
+        "options": {
+          "systemMessage": "={{'\\nData e hora atual no Brasil: ' + $now.setZone('America/Sao_Paulo').setLocale('pt-BR').toFormat(\"cccc, dd/MM/yyyy 'às' HH:mm\") }}\nVocê é Bia, assistente virtual da Clínica Estética Beleza Beautes.\n\nFale em português do Brasil, com tom acolhedor, objetivo e profissional.\nUse emojis com moderação. Responda normalmente em até 4 linhas.\n\nSERVIÇOS:\n- Acompanhamento Pós-operatório\n- Limpeza de Pele Profunda\n- Skin Booster\n- Toxina Botulínica (Botox)\n- Preenchimento Facial e Labial\n- Estimulador de Colágeno\n- Microagulhamento\n- Massagem Modeladora\n- Endolaser\n\nREGRAS GERAIS:\n1. Quando a cliente perguntar sobre um serviço, explique brevemente o benefício e pergunte se ela gostaria de agendar.\n   ► SOBRE O PÓS-OPERATÓRIO: Explique que é um acompanhamento individualizado para auxiliar na recuperação e reduzir o inchaço. Pode incluir Drenagem, Ultrassom, Radiofrequência, LED/laser e Ozonioterapia, definidos conforme avaliação do paciente.\n2. Nunca mencione preço, PIX, pagamento, comprovante, sinal, taxa ou valor de avaliação enquanto a cliente estiver apenas conhecendo um serviço, tirando dúvidas ou demonstrando interesse.\n3. Se a cliente disser apenas “quero marcar”, “quero agendar” ou algo parecido, pergunte qual dia e horário ela prefere. Não fale de valores nessa etapa.\n4. Se a cliente informar somente o dia, mas não o horário, peça o horário. Não fale de valores até existir dia e horário específicos.\n5. Perguntas de calendário têm prioridade. A data atual está informada na mensagem. Se ela perguntar “amanhã é qual dia?”, responda diretamente usando a data.\n\n\nDIRETRIZES DE CONDUÇÃO DA CONVERSA:\n- Responda primeiro ao que a cliente perguntou. Depois, faça no máximo uma pergunta, apenas a mais útil para avançar. Não faça várias perguntas na mesma mensagem nem transforme o atendimento em interrogatório.\n- Entenda o objetivo e o procedimento antes de recomendar. Use somente serviços e informações deste prompt e pergunte apenas os dados ainda não informados, com naturalidade.\n- Se a cliente estiver pesquisando ou tirando dúvidas, explique o serviço e ajude sem pressionar. Não envie catálogo ou tabela de preços sem necessidade.\n- Se perguntarem preço, siga rigorosamente as condições e restrições de preço das regras por serviço. Não use valores do coworking odontológico e não invente preço, desconto ou parcelamento.\n- Se a cliente demonstrar intenção concreta de agendar, pare de oferecer outras opções e avance com os dados que faltam. Não pergunte novamente o que ela já informou.\n- Pré-reserva não significa disponibilidade confirmada. Nunca afirme que o horário está confirmado ou disponível; informe somente a pré-reserva e use a mensagem final obrigatória para explicar que um especialista verificará a agenda.\n- Se a cliente disser que achou caro ou que ainda está pesquisando, acolha sem discutir, pressionar ou oferecer desconto. Faça somente uma pergunta relevante se ela ajudar a orientar o atendimento.\n- Se perguntarem algo que não está cadastrado neste prompt, não invente. Responda: “Essa informação eu prefiro confirmar para não te passar algo incorreto. Aguarde um dos nossos especialistas verificar, e em breve retornaremos por aqui.”\n\n\nATENDIMENTO DO BEAUTES COWORKING ODONTOLÓGICO:\nA Beautes também oferece sublocação de consultório odontológico para profissionais da odontologia. Quando houver pergunta sobre sublocação, locação de sala ou coworking odontológico, nunca diga que a Beautes não oferece esse serviço. Explique a opção mais adequada e conduza a conversa para verificar a necessidade do profissional.\n\nOPÇÕES E PREÇOS DO COWORKING:\n- Por hora: R$ 70,00 por hora, com reserva mínima de 3 horas (mínimo de R$ 210,00).\n- Meia diária: 5 horas por R$ 220,00.\n- Diária: 10 horas por R$ 350,00.\n- Plano mensal de 4 meias diárias: 4 períodos de 5 horas (20 horas no mês) por R$ 1.120,00.\n- Plano mensal de 4 diárias: 4 períodos de 10 horas (40 horas no mês) por R$ 1.500,00.\n- Localização informada para o coworking: Edifício Medical Center, Sala 808. Não invente rua, número ou outros detalhes do endereço do coworking.\n\nAo recomendar, entenda primeiro se o uso é pontual ou recorrente e quantas horas precisa. Faça uma pergunta por vez. Para 4 horas avulsas, compare com a meia diária de 5 horas por R$ 220,00. Para 6 a 10 horas, compare com a diária de 10 horas por R$ 350,00. Para uso recorrente, apresente os planos mensais sem pressionar. Use somente os preços acima e não invente descontos ou disponibilidade.\n\nQuando a cliente perguntar sobre sublocação ou demonstrar interesse no consultório, não escreva o link separadamente na resposta: o fluxo enviará o Reel como legenda da imagem da tabela.\n\nREGRAS POR SERVIÇO:\n\n6. Para Acompanhamento Pós-operatório, Skin Booster, Botox, Preenchimento Facial e Labial, Estimulador de Colágeno, Microagulhamento e Massagem Modeladora:\n- Peça dia e horário;\n- Após receber AMBOS (dia e horário), informe que o agendamento foi pré-reservado.\n- Nunca fale de preço, PIX, pagamento ou comprovante para estes procedimentos.\n\n7. Para LIMPEZA DE PELE PROFUNDA:\n- Custa R$100;\n- Somente depois que a cliente informar dia e horário, diga que o horário foi pré-reservado;\n- Informe que é necessário pagar 50% para confirmar a reserva (R$50);\n- Envie os dados de PIX: Chave CNPJ 54747955000136 | Banco Santander | Nome: BeautesCoworking.\n\n8. Para ENDOLASER:\n- Somente depois que a cliente informar dia e horário, diga que o horário foi pré-reservado;\n- Informe que a avaliação custa R$50;\n- Envie os dados de PIX: Chave CNPJ 54747955000136 | Banco Santander | Nome: BeautesCoworking.\n\n9. MENSAGEM FINAL DE CONFIRMAÇÃO:\n- Sempre que finalizar o agendamento (após pré-reserva sem PIX, ou após a cliente mandar comprovante de PIX), encerre com EXATAMENTE este texto:\n“Ok, tudo anotado! 💖 Aguarde um dos nossos especialistas verificar o seu horário na nossa agenda. Em breve retornaremos o contato por aqui para finalizar seu atendimento!”",
+          "maxIterations": 10
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        2736,
+        320
+      ],
+      "id": "2321fe05-a7c3-4837-9baf-015bc487a402",
+      "name": "Assistente Bia (Gemini)"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2736,
+        496
+      ],
+      "id": "80d640e9-9d9c-4c7e-8699-470bc395f933",
+      "name": "Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "elwiCcumckY0POb1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=beautes:chat:{{ $json.tenant_slug }}:{{ $json.remoteJid }}",
+        "sessionTTL": 86400,
+        "contextWindowLength": 8
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        2848,
+        496
+      ],
+      "id": "021bdee3-d1b9-4716-8d02-12007e1cb437",
+      "name": "Memoria Redis da Conversa",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Preparar Contexto Beautes').item.json;\nconst raw = String($json.output || $json.text || '').trim();\nconst responseText = raw;\n\nconst precisaValidacao = /(aguarde.*especialista|\\bpix\\b|comprovante|pagamento|pr[ée]-reservad|confirmar.*hor[áa]rio|tudo anotado)/i.test(raw);\nconst handoff = Boolean(base.handoff || precisaValidacao);\nconst stage = handoff ? 'Validacao de Pagamento/Agendamento' : base.stage;\n\nreturn { json: { ...base, responseText, handoff, stage, direction: 'inbound', sender_type: 'contact', delivery_status: 'received' } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2976,
+        320
+      ],
+      "id": "96380407-455c-4b31-96b8-d2d4e0341a7c",
+      "name": "Preparar Resposta Beautes"
+    },
+    {
+      "parameters": {
+        "tableId": "channel_events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "tenant_slug",
+              "fieldValue": "={{ $json.tenant_slug }}"
+            },
+            {
+              "fieldId": "channel_type",
+              "fieldValue": "={{ $json.channel_type }}"
+            },
+            {
+              "fieldId": "external_conversation_id",
+              "fieldValue": "={{ $json.remoteJid }}"
+            },
+            {
+              "fieldId": "external_message_id",
+              "fieldValue": "={{ $json.messageId }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "inbound"
+            },
+            {
+              "fieldId": "sender_type",
+              "fieldValue": "contact"
+            },
+            {
+              "fieldId": "contact_name",
+              "fieldValue": "={{ $json.contactName }}"
+            },
+            {
+              "fieldId": "contact_handle",
+              "fieldValue": "={{ $json.phone }}"
+            },
+            {
+              "fieldId": "message_text",
+              "fieldValue": "={{ $json.messageText }}"
+            },
+            {
+              "fieldId": "service",
+              "fieldValue": "={{ $json.service }}"
+            },
+            {
+              "fieldId": "stage",
+              "fieldValue": "={{ $json.stage }}"
+            },
+            {
+              "fieldId": "handoff",
+              "fieldValue": "={{ $json.handoff }}"
+            },
+            {
+              "fieldId": "response_text",
+              "fieldValue": "={{ $json.responseText }}"
+            },
+            {
+              "fieldId": "raw_payload",
+              "fieldValue": "={{ JSON.stringify($json.raw_payload) }}"
+            },
+            {
+              "fieldId": "delivery_status",
+              "fieldValue": "received"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3216,
+        320
+      ],
+      "id": "5ca84af0-4764-4051-b830-e1429c37753d",
+      "name": "Salvar Evento Recebido",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XFJa1kmsB6Qcczel",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { ...$('Preparar Resposta Beautes').item.json, inbound_saved: true } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3344,
+        320
+      ],
+      "id": "cee164b8-c304-42f1-b461-cf6ffab0186b",
+      "name": "Restaurar Contexto para Envio"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Amanda",
+        "remoteJid": "={{ $json.remoteJid }}",
+        "messageText": "={{ $json.responseText }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        3456,
+        320
+      ],
+      "id": "70960c61-5ee9-47b1-b593-52d176a9afdc",
+      "name": "Enviar Resposta pela Evolution",
+      "credentials": {
+        "evolutionApi": {
+          "id": "uOV6FFGhyIhaWfSX",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Preparar Resposta Beautes').item.json;\nconst sent = $json;\nconst externalMessageId = String(sent?.key?.id || sent?.message?.key?.id || sent?.id || base.messageId + ':reply');\nreturn { json: { ...base, externalMessageId, direction: 'outbound', sender_type: 'assistant', messageText: base.responseText, delivery_status: 'sent', raw_payload: { provider: 'evolution_api', response: sent } } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3696,
+        320
+      ],
+      "id": "656a67c7-64b7-4d1f-9570-dfe4b3ba102b",
+      "name": "Preparar Evento Enviado"
+    },
+    {
+      "parameters": {
+        "tableId": "channel_events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "tenant_slug",
+              "fieldValue": "={{ $json.tenant_slug }}"
+            },
+            {
+              "fieldId": "channel_type",
+              "fieldValue": "={{ $json.channel_type }}"
+            },
+            {
+              "fieldId": "external_conversation_id",
+              "fieldValue": "={{ $json.remoteJid }}"
+            },
+            {
+              "fieldId": "external_message_id",
+              "fieldValue": "={{ $json.externalMessageId }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "sender_type",
+              "fieldValue": "assistant"
+            },
+            {
+              "fieldId": "contact_name",
+              "fieldValue": "={{ $json.contactName }}"
+            },
+            {
+              "fieldId": "contact_handle",
+              "fieldValue": "={{ $json.phone }}"
+            },
+            {
+              "fieldId": "message_text",
+              "fieldValue": "={{ $json.messageText }}"
+            },
+            {
+              "fieldId": "service",
+              "fieldValue": "={{ $json.service }}"
+            },
+            {
+              "fieldId": "stage",
+              "fieldValue": "={{ $json.stage }}"
+            },
+            {
+              "fieldId": "handoff",
+              "fieldValue": "={{ $json.handoff }}"
+            },
+            {
+              "fieldId": "raw_payload",
+              "fieldValue": "={{ JSON.stringify($json.raw_payload) }}"
+            },
+            {
+              "fieldId": "delivery_status",
+              "fieldValue": "sent"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3936,
+        320
+      ],
+      "id": "b5305a3d-59d2-4db0-b657-d43f40d5080b",
+      "name": "Salvar Evento Enviado",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XFJa1kmsB6Qcczel",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, channel: 'whatsapp', external_message_id: $('Preparar Evento Enviado').item.json.messageId, response: $('Preparar Evento Enviado').item.json.messageText, delivery_status: 'sent' } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        4656,
+        320
+      ],
+      "id": "08b02f0f-717e-4a5d-98b0-8b1d5a40d436",
+      "name": "Responder Evolution API"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Preparar Resposta Beautes').item.json.isCoworkingInquiry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4176,
+        320
+      ],
+      "id": "4376e799-8a5b-42c4-a936-b920d88cd64a",
+      "name": "Detectar Sublocação para Imagem"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "send-image",
+        "instanceName": "Amanda",
+        "remoteJid": "={{ $('Preparar Evento Enviado').item.json.remoteJid }}",
+        "media": "https://foxsxchuwguyahimkxfd.supabase.co/storage/v1/object/public/assets-beautes/imagem%20beautes.jpeg",
+        "mimetype": "image/jpeg",
+        "caption": "Tabela de opções para sublocação do consultório odontológico.\nConheça o espaço: https://www.instagram.com/reel/DbdUm2DxAGu/?stkn=MWd5NTZ3NGV2bWJ5",
+        "fileName": "imagem beautes.jpeg",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        4416,
+        224
+      ],
+      "id": "708e2f3d-e17f-4ede-8f03-961937d05d2f",
+      "name": "Enviar Imagem Beautes",
+      "credentials": {
+        "evolutionApi": {
+          "id": "uOV6FFGhyIhaWfSX",
+          "name": "Evolution account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook WhatsApp Evolution": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Entrada WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Mensagem valida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem valida?": {
+      "main": [
+        [
+          {
+            "node": "Consultar Deduplicacao no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Evento Ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Deduplicacao no Redis": {
+      "main": [
+        [
+          {
+            "node": "Verificar Duplicidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Duplicidade": {
+      "main": [
+        [
+          {
+            "node": "Mensagem nova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem nova?": {
+      "main": [
+        [
+          {
+            "node": "Marcar Mensagem no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Duplicidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Mensagem no Redis": {
+      "main": [
+        [
+          {
+            "node": "Restaurar Contexto apos Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar Contexto apos Redis": {
+      "main": [
+        [
+          {
+            "node": "Preparar mensagem para debounce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar mensagem para debounce": {
+      "main": [
+        [
+          {
+            "node": "Redis enfileirar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis enfileirar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Redis adquirir líder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis adquirir líder": {
+      "main": [
+        [
+          {
+            "node": "Consolidar lock Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar lock Redis": {
+      "main": [
+        [
+          {
+            "node": "É o líder do debounce?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É o líder do debounce?": {
+      "main": [
+        [
+          {
+            "node": "Aguardar 10s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder WhatsApp enfileirado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar 10s": {
+      "main": [
+        [
+          {
+            "node": "Redis ler lote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis ler lote": {
+      "main": [
+        [
+          {
+            "node": "Juntar mensagens fragmentadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar mensagens fragmentadas": {
+      "main": [
+        [
+          {
+            "node": "Redis limpar lote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis limpar lote": {
+      "main": [
+        [
+          {
+            "node": "Redis liberar líder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis liberar líder": {
+      "main": [
+        [
+          {
+            "node": "Restaurar lote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar lote": {
+      "main": [
+        [
+          {
+            "node": "E audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E audio?": {
+      "main": [
+        [
+          {
+            "node": "Converter Audio para Arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Contexto Beautes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter Audio para Arquivo": {
+      "main": [
+        [
+          {
+            "node": "Transcrever Audio (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever Audio (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Aplicar Transcricao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar Transcricao": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Beautes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Beautes": {
+      "main": [
+        [
+          {
+            "node": "Assistente Bia (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assistente Bia (Gemini)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria Redis da Conversa": {
+      "ai_memory": [
+        [
+          {
+            "node": "Assistente Bia (Gemini)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assistente Bia (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Resposta Beautes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Resposta Beautes": {
+      "main": [
+        [
+          {
+            "node": "Salvar Evento Recebido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Evento Recebido": {
+      "main": [
+        [
+          {
+            "node": "Restaurar Contexto para Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar Contexto para Envio": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Resposta pela Evolution": {
+      "main": [
+        [
+          {
+            "node": "Preparar Evento Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Evento Enviado": {
+      "main": [
+        [
+          {
+            "node": "Salvar Evento Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Evento Enviado": {
+      "main": [
+        [
+          {
+            "node": "Detectar Sublocação para Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Sublocação para Imagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar Imagem Beautes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Imagem Beautes": {
+      "main": [
+        [
+          {
+            "node": "Responder Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "b3917d9c-4b02-46ad-84df-71d61e2f52e3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a8066bd08e695a482efeb6b2195ce4b21707ca9c1db499981bd18ffeb4b37cfc"
+  },
+  "nodeGroups": [],
+  "id": "FOmnncnOeXOaj7xd",
+  "tags": []
+}

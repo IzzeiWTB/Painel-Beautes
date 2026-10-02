@@ -17,7 +17,8 @@
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
         [hidden] { display: none !important; }
-        body { background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; }
+        body { background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: auto; -webkit-font-smoothing: antialiased; -webkit-overflow-scrolling: touch; }
+        #appContent { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; height: 100vh; height: 100dvh; overflow: hidden; }
 
         .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
         .logo h1 { font-size: 18px; color: var(--accent); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
@@ -36,7 +37,7 @@
         input[type="date"]::-webkit-calendar-picker-indicator, input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
         .date-filters { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 
-        .board { display: flex; gap: 16px; padding: 20px; overflow-x: auto; flex: 1 1 auto; align-items: flex-start; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; min-height: 0; }
+        .board { display: flex; gap: 16px; padding: 20px; overflow-x: auto; overflow-y: auto; flex: 1 1 auto; align-items: flex-start; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; min-height: 0; touch-action: pan-x pan-y; }
         .column { min-width: 300px; width: 300px; background: var(--surface); border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; max-height: 100%; flex-shrink: 0; }
         .col-header { padding: 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; background: var(--surface); border-radius: 12px 12px 0 0; }
         .col-label { display: flex; align-items: center; gap: 8px; }
@@ -341,6 +342,23 @@
         return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     }
 
+    function extrairTextoCliente(cliente, chaves) {
+        for (const chave of chaves) {
+            const valor = cliente?.[chave];
+            if (valor !== undefined && valor !== null && String(valor).trim() !== '') return String(valor).trim();
+        }
+        return '';
+    }
+
+    function escaparHtml(valor) {
+        return String(valor ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     async function carregarDados() {
         const btn = document.getElementById('btnAtualizar');
         const board = document.getElementById('boardKanban');
@@ -467,8 +485,12 @@
 
         const strDataAgenda = formatarDataHoraString(c.data_agendamento);
         const tagAgendamento = strDataAgenda 
-            ? `<div class="info-row" style="color: var(--success); font-weight: bold;">📅 Data: ${strDataAgenda}</div>`
+            ? `<div class="info-row" style="color: var(--success); font-weight: bold;">📅 Data: ${escaparHtml(strDataAgenda)}</div>`
             : '';
+
+        const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'servico', 'servico_desejado', 'tratamento', 'procedimento_cliente']) || 'Não informado';
+        const pagamento = extrairTextoCliente(c, ['pagamento', 'status_pagamento', 'pix', 'status_pix', 'forma_pagamento', 'forma_pagamento_status', 'pagamento_status']) || 'Não informado';
+        const pagamentoCor = /pago|confirmado|pix|transfer|recebido|aprovado/i.test(pagamento) ? 'var(--success)' : /pendente|nao|falt|aguard|rejeit/i.test(pagamento) ? 'var(--danger)' : '#ddd';
 
         const badgeContrato = c.contrato_assinado 
             ? `<span class="tag tag-contrato-ok">✍️ Contrato Assinado</span>`
@@ -477,16 +499,17 @@
         const tagCriacao = formatarApenasDataString(c.data_solicitacao);
 
         return `
-            <div class="card" data-id="${c.remote_jid}">
-                <div class="card-name">${c.nome} <span style="font-size: 10px; color: var(--muted); font-weight: normal;">${tagCriacao}</span></div>
-                <div class="card-phone">📱 ${c.telefone}</div>
-                <div class="info-row"><strong>Serviço:</strong> ${c.servico}</div>
+            <div class="card" data-id="${escaparHtml(c.remote_jid)}">
+                <div class="card-name">${escaparHtml(c.nome)} <span style="font-size: 10px; color: var(--muted); font-weight: normal;">${escaparHtml(tagCriacao)}</span></div>
+                <div class="card-phone">📱 ${escaparHtml(c.telefone)}</div>
+                <div class="info-row"><strong>Procedimento:</strong> ${escaparHtml(procedimento)}</div>
+                <div class="info-row"><strong>Pagamento:</strong> <span style="color:${pagamentoCor};">${escaparHtml(pagamento)}</span></div>
                 ${tagAgendamento}
                 <div class="tags-container">${badgeContrato}</div>
                 <div class="btn-group">
                     <a href="https://wa.me/${linkWhats}" target="_blank" class="btn-card" style="background: #166534; color: #fff;">WhatsApp</a>
-                    <button class="btn-card" onclick="abrirModalContrato('${c.remote_jid}')">Assinar</button>
-                    <button class="btn-card confirm" onclick="abrirModalConfirmacao('${c.remote_jid}')">Agendar</button>
+                    <button class="btn-card" onclick="abrirModalContrato('${escaparHtml(c.remote_jid)}')">Assinar</button>
+                    <button class="btn-card confirm" onclick="abrirModalConfirmacao('${escaparHtml(c.remote_jid)}')">Agendar</button>
                 </div>
             </div>
         `;
@@ -511,12 +534,14 @@
         container.innerHTML = lista.map(c => {
             const isConf = c.coluna_id === 'fechado';
             const strData = formatarDataHoraString(c.data_agendamento);
-            const htmlData = strData ? `<p style="margin-top: 8px; color: var(--accent); font-size: 14px; font-weight: bold;">📅 Agendado para: ${strData}</p>` : `<p style="margin-top: 8px; color: var(--danger); font-size: 12px; font-weight: bold;">⚠ Horário pendente</p>`;
+            const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'servico', 'servico_desejado', 'tratamento']) || 'Não informado';
+            const pagamento = extrairTextoCliente(c, ['pagamento', 'status_pagamento', 'pix', 'status_pix', 'forma_pagamento', 'forma_pagamento_status', 'pagamento_status']) || 'Não informado';
+            const htmlData = strData ? `<p style="margin-top: 8px; color: var(--accent); font-size: 14px; font-weight: bold;">📅 Agendado para: ${escaparHtml(strData)}</p>` : `<p style="margin-top: 8px; color: var(--danger); font-size: 12px; font-weight: bold;">⚠ Horário pendente</p>`;
             return `
                 <div class="agenda-item">
                     <div style="flex: 1; min-width: 200px;">
-                        <div class="agenda-item-info"><h4>${c.nome}</h4><p>📱 ${c.telefone} | 💆‍♀️ <strong>${c.servico}</strong></p>${htmlData}</div>
-                        <div class="agenda-item-msg"><strong>Msg do cliente:</strong><br> "${c.ultima_mensagem_cliente || 'Sem mensagem'}"</div>
+                        <div class="agenda-item-info"><h4>${escaparHtml(c.nome)}</h4><p>📱 ${escaparHtml(c.telefone)} | 💆‍♀️ <strong>${escaparHtml(procedimento)}</strong></p><p>💳 Pagamento: <strong>${escaparHtml(pagamento)}</strong></p>${htmlData}</div>
+                        <div class="agenda-item-msg"><strong>Msg do cliente:</strong><br> "${escaparHtml(c.ultima_mensagem_cliente || 'Sem mensagem')}"</div>
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end;">
                         <span class="agenda-status ${isConf ? 'status-fechado' : 'status-validar'}">${isConf ? '✅ Confirmado' : '⏳ Aguarda Validação'}</span>

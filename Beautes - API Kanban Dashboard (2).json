@@ -1,0 +1,218 @@
+{
+  "name": "Beautes - API Kanban Dashboard",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "beautes-dashboard",
+        "responseMode": "lastNode",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "425fe9ab-b1df-4873-9703-cc28234a0bee",
+      "name": "GET Carregar Painel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        336
+      ],
+      "webhookId": "b8ab5b22-80bc-4752-ac63-9ab51dd4f2be"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "view_kanban_beautes",
+        "limit": 100,
+        "orderBy": "data_solicitacao.desc"
+      },
+      "id": "6825f764-ca06-42bf-9fc1-bd0dcbcbd857",
+      "name": "Buscar Pendentes (View)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        208,
+        336
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "XFJa1kmsB6Qcczel",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "beautes-confirmar",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "e53d0f55-736b-43b0-9c62-2b980dd1d6bc",
+      "name": "POST Confirmar Cliente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -112,
+        576
+      ],
+      "webhookId": "21e281ce-3163-4bc9-a147-4294efd90229"
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { remote_jid: $json.body.remote_jid, data_agendamento: $json.body.data_agendamento } };"
+      },
+      "id": "e0427261-f539-4398-af42-85991aa0b131",
+      "name": "Extrair Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "channel_events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "handoff",
+              "fieldValue": "false"
+            },
+            {
+              "fieldId": "stage",
+              "fieldValue": "Agendamento Confirmado"
+            },
+            {
+              "fieldId": "data_agendamento",
+              "fieldValue": "={{ $json.data_agendamento }}"
+            }
+          ]
+        }
+      },
+      "id": "ab6a8fca-1de9-40e0-b030-abd0e4c550b0",
+      "name": "Atualizar Banco",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        288,
+        576
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "XFJa1kmsB6Qcczel",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Amanda",
+        "remoteJid": "={{ $('Extrair Dados').item.json.remote_jid }}",
+        "messageText": "✅ Olá! Passando para avisar que o seu agendamento foi oficialmente confirmado pela nossa equipa. Te esperamos na clínica! 💖",
+        "options_message": {}
+      },
+      "id": "23727fc9-120d-4473-a640-0ea3406ffa16",
+      "name": "Avisar Cliente Confirmado",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        496,
+        576
+      ],
+      "credentials": {
+        "evolutionApi": {
+          "id": "uOV6FFGhyIhaWfSX",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"sucesso\": true,\n  \"mensagem\": \"Cliente confirmado com data!\"\n}",
+        "options": {}
+      },
+      "id": "a591976f-64f8-4b08-bedd-8324eac5a3bd",
+      "name": "Responder ao HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        576
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "GET Carregar Painel": {
+      "main": [
+        [
+          {
+            "node": "Buscar Pendentes (View)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Confirmar Cliente": {
+      "main": [
+        [
+          {
+            "node": "Extrair Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Dados": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Banco": {
+      "main": [
+        [
+          {
+            "node": "Avisar Cliente Confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar Cliente Confirmado": {
+      "main": [
+        [
+          {
+            "node": "Responder ao HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "46619077-d66d-4743-a8cc-b4dddfe305d8",
+  "meta": {
+    "instanceId": "a8066bd08e695a482efeb6b2195ce4b21707ca9c1db499981bd18ffeb4b37cfc"
+  },
+  "nodeGroups": [],
+  "id": "Ldox1WUD00OGkgfL",
+  "tags": []
+}
