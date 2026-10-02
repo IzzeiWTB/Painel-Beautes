@@ -399,8 +399,10 @@
                 else if (rawStatus.includes('validacao') || rawStatus.includes('pagamento') || rawStatus.includes('aguardando humano')) colunaFinal = 'aguardando_validacao';
                 else if (rawStatus.includes('agendado') || rawStatus.includes('confirmado') || rawStatus.includes('fechado')) colunaFinal = 'fechado';
 
-                const procedimentoExplicito = extrairTextoCliente(cliente, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico']) || extrairTextoCliente(cliente, ['servico', 'service', 'procedimento_cliente']);
-                const valorServico = procedimentoExplicito && !/estetica|atendimento/i.test(procedimentoExplicito) ? procedimentoExplicito : (cliente.servico || cliente.service || 'Em atendimento...');
+                const procedimentoExplicito = extrairTextoCliente(cliente, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico_desejado']) || extrairTextoCliente(cliente, ['servico', 'service', 'procedimento_cliente', 'procedimento_cliente']);
+                const valorServico = procedimentoExplicito && !/estetica|atendimento|em atendimento/i.test(procedimentoExplicito)
+                    ? procedimentoExplicito
+                    : ((cliente.procedimento || cliente.servico || cliente.service || 'Em atendimento...'));
 
                 return {
                     ...cliente,
