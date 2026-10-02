@@ -399,11 +399,15 @@
                 else if (rawStatus.includes('validacao') || rawStatus.includes('pagamento') || rawStatus.includes('aguardando humano')) colunaFinal = 'aguardando_validacao';
                 else if (rawStatus.includes('agendado') || rawStatus.includes('confirmado') || rawStatus.includes('fechado')) colunaFinal = 'fechado';
 
+                const procedimentoExplicito = extrairTextoCliente(cliente, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico']) || extrairTextoCliente(cliente, ['servico', 'service', 'procedimento_cliente']);
+                const valorServico = procedimentoExplicito && !/estetica|atendimento/i.test(procedimentoExplicito) ? procedimentoExplicito : (cliente.servico || cliente.service || 'Em atendimento...');
+
                 return {
                     ...cliente,
                     nome: cliente.nome || cliente.contact_name || 'Desconhecido',
                     telefone: cliente.telefone || cliente.contact_handle,
-                    servico: cliente.servico || 'Em atendimento...',
+                    servico: valorServico,
+                    procedimento: procedimentoExplicito || valorServico,
                     data_solicitacao: cliente.data_solicitacao || cliente.created_at,
                     data_agendamento: cliente.data_agendamento,
                     remote_jid: cliente.remote_jid || cliente.external_conversation_id,
@@ -505,7 +509,7 @@
             ? `<div class="info-row" style="color: var(--success); font-weight: bold;">📅 Data: ${escaparHtml(strDataAgenda)}</div>`
             : '';
 
-        const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'servico', 'servico_desejado', 'tratamento', 'procedimento_cliente']) || 'Não informado';
+        const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico', 'service', 'servico_desejado', 'tratamento', 'procedimento_cliente']) || 'Não informado';
         const pagamento = extrairTextoCliente(c, ['pagamento', 'status_pagamento', 'pix', 'status_pix', 'forma_pagamento', 'forma_pagamento_status', 'pagamento_status']) || 'Não informado';
         const pagamentoCor = /pago|confirmado|pix|transfer|recebido|aprovado/i.test(pagamento) ? 'var(--success)' : /pendente|nao|falt|aguard|rejeit/i.test(pagamento) ? 'var(--danger)' : '#ddd';
 
@@ -551,7 +555,7 @@
         container.innerHTML = lista.map(c => {
             const isConf = c.coluna_id === 'fechado';
             const strData = formatarDataHoraString(c.data_agendamento);
-            const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'servico', 'servico_desejado', 'tratamento']) || 'Não informado';
+            const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico', 'service', 'servico_desejado', 'tratamento']) || 'Não informado';
             const pagamento = extrairTextoCliente(c, ['pagamento', 'status_pagamento', 'pix', 'status_pix', 'forma_pagamento', 'forma_pagamento_status', 'pagamento_status']) || 'Não informado';
             const htmlData = strData ? `<p style="margin-top: 8px; color: var(--accent); font-size: 14px; font-weight: bold;">📅 Agendado para: ${escaparHtml(strData)}</p>` : `<p style="margin-top: 8px; color: var(--danger); font-size: 12px; font-weight: bold;">⚠ Horário pendente</p>`;
             return `
