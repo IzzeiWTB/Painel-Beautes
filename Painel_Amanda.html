@@ -57,6 +57,7 @@
         .tag { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
         .tag-contrato-ok { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
         .tag-contrato-pendente { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+        .tag-servico { background: rgba(212,175,55,0.12); color: var(--accent); border: 1px solid rgba(212,175,55,0.3); text-transform: none; }
 
         .btn-group { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;}
         .btn-card { flex: 1; text-align: center; padding: 8px; font-size: 11px; font-weight: bold; border-radius: 6px; cursor: pointer; text-decoration: none; border: 1px solid var(--border); color: #ccc; background: transparent; transition: 0.2s;}
@@ -205,12 +206,13 @@
             <button class="modal-close" onclick="fecharModal('modalConfirmarData')">&times;</button>
         </div>
         <input type="hidden" id="confirmRemoteJid">
-        <p style="font-size: 12px; color: var(--muted); margin-bottom: 15px;">Defina a data e hora em que o cliente será atendido na clínica.</p>
+        <input type="hidden" id="confirmServiceTag">
+        <p style="font-size: 12px; color: var(--muted); margin-bottom: 15px;">Confirme o serviço, a data e o horário escolhidos pelo cliente. Este horário não pode ser alterado nesta tela.</p>
         <div class="form-group">
-            <label>Data e Hora do Procedimento</label>
-            <input type="datetime-local" id="dataEscolhida" class="form-control" required>
+            <label>Serviço e horário solicitado</label>
+            <input type="text" id="dataEscolhida" class="form-control" readonly aria-readonly="true">
         </div>
-        <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="enviarConfirmacao()">Salvar e Avisar Cliente</button>
+        <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="enviarConfirmacao()">Confirmar horário solicitado</button>
     </div>
 </div>
 
@@ -261,7 +263,7 @@
     const SUPABASE_URL = 'https://foxsxchuwguyahimkxfd.supabase.co';
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false }
     });
     let clientesGlobais = [];
     let primeiraCarga = true;
@@ -289,6 +291,7 @@
         supabaseClient.auth.onAuthStateChange((event, sessionAtualizada) => {
             if (event === 'SIGNED_OUT') encerrarSessao(false);
             if (event === 'SIGNED_IN' && sessionAtualizada) abrirPainel(sessionAtualizada);
+            if (event === 'TOKEN_REFRESHED' && sessionAtualizada) sessaoAtual = sessionAtualizada;
         });
     }
 
@@ -338,25 +341,24 @@
     // =====================================================================
     function converterDataSegura(dataString) {
         if (!dataString) return null;
-        let d = new Date(String(dataString).replace(' ', 'T'));
+        const value = String(dataString).trim().replace(' ', 'T');
+        const hasTimezone = /[zZ]|[+-][0-9]{2}:[0-9]{2}$/.test(value);
+        const localValue = value.includes('T') ? value : `${value}T00:00:00`;
+        const d = new Date(hasTimezone ? value : `${localValue}-03:00`);
         return isNaN(d.getTime()) ? null : d;
     }
 
     function formatarDataHoraString(dataString) {
         const d = converterDataSegura(dataString);
         if (!d) return '';
-        const dia = String(d.getDate()).padStart(2, '0');
-        const mes = String(d.getMonth() + 1).padStart(2, '0');
-        const ano = d.getFullYear();
-        const hora = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${dia}/${mes}/${ano} às ${hora}:${min}`;
+        const formatted = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+        return formatted.replace(', ', ' às ');
     }
 
     function formatarApenasDataString(dataString) {
         const d = converterDataSegura(dataString);
         if (!d) return '';
-        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
     }
 
     function extrairTextoCliente(cliente, chaves) {
@@ -365,6 +367,27 @@
             if (valor !== undefined && valor !== null && String(valor).trim() !== '') return String(valor).trim();
         }
         return '';
+    }
+
+    function normalizarTagServico(valor) {
+        const texto = String(valor ?? '').trim();
+        if (/^serviço:[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(texto)) return texto.toLowerCase();
+        const normalizado = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const slugs = {
+            endolaser: 'endolaser',
+            botox: 'botox',
+            'toxina botulinica (botox)': 'botox',
+            consulta: 'consulta',
+            'preenchimento facial e labial': 'preenchimento',
+            'skin booster': 'skin-booster',
+            'limpeza de pele profunda': 'limpeza-de-pele-profunda',
+            'acompanhamento pos-operatorio': 'acompanhamento-pos-operatorio',
+            'estimulador de colageno': 'estimulador-de-colageno',
+            microagulhamento: 'microagulhamento',
+            'massagem modeladora': 'massagem-modeladora',
+            coworking_odontologico: 'coworking-odontologico'
+        };
+        return slugs[normalizado] ? `serviço:${slugs[normalizado]}` : '';
     }
 
     function escaparHtml(valor) {
@@ -394,22 +417,22 @@
                 const cliente = item.json || item || {};
                 let rawStatus = String(cliente.status || cliente.stage || 'novos_leads').toLowerCase();
                 let colunaFinal = 'novos_leads';
-                if (rawStatus.includes('atendimento inicial') || rawStatus.includes('novos')) colunaFinal = 'novos_leads';
+                if (rawStatus.includes('agendamento confirmado') || rawStatus.includes('agendado') || rawStatus.includes('confirmado') || rawStatus.includes('fechado')) colunaFinal = 'fechado';
+                else if (rawStatus.includes('agendamento') || rawStatus.includes('validacao') || rawStatus.includes('pagamento') || rawStatus.includes('aguardando humano')) colunaFinal = 'aguardando_validacao';
+                else if (rawStatus.includes('atendimento inicial') || rawStatus.includes('novos')) colunaFinal = 'novos_leads';
                 else if (rawStatus.includes('qualifica')) colunaFinal = 'qualificacao';
-                else if (rawStatus.includes('validacao') || rawStatus.includes('pagamento') || rawStatus.includes('aguardando humano')) colunaFinal = 'aguardando_validacao';
-                else if (rawStatus.includes('agendado') || rawStatus.includes('confirmado') || rawStatus.includes('fechado')) colunaFinal = 'fechado';
 
                 const procedimentoExplicito = extrairTextoCliente(cliente, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico_desejado']) || extrairTextoCliente(cliente, ['servico', 'service', 'procedimento_cliente', 'procedimento_cliente']);
-                const valorServico = procedimentoExplicito && !/estetica|atendimento|em atendimento/i.test(procedimentoExplicito)
-                    ? procedimentoExplicito
-                    : ((cliente.procedimento || cliente.servico || cliente.service || 'Em atendimento...'));
+                const serviceTag = normalizarTagServico(procedimentoExplicito);
+                const valorServico = serviceTag || (procedimentoExplicito && !/estetica|atendimento|em atendimento/i.test(procedimentoExplicito) ? procedimentoExplicito : 'Não informado');
 
                 return {
                     ...cliente,
                     nome: cliente.nome || cliente.contact_name || 'Desconhecido',
                     telefone: cliente.telefone || cliente.contact_handle,
                     servico: valorServico,
-                    procedimento: procedimentoExplicito || valorServico,
+                    service_tag: serviceTag,
+                    procedimento: serviceTag || valorServico,
                     data_solicitacao: cliente.data_solicitacao || cliente.created_at,
                     data_agendamento: cliente.data_agendamento,
                     remote_jid: cliente.remote_jid || cliente.external_conversation_id,
@@ -511,9 +534,10 @@
             ? `<div class="info-row" style="color: var(--success); font-weight: bold;">📅 Data: ${escaparHtml(strDataAgenda)}</div>`
             : '';
 
-        const procedimento = extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico', 'service', 'servico_desejado', 'tratamento', 'procedimento_cliente']) || 'Não informado';
+        const procedimento = normalizarTagServico(c.service_tag || extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico', 'service', 'servico_desejado', 'tratamento', 'procedimento_cliente'])) || 'Não informado';
         const pagamento = extrairTextoCliente(c, ['pagamento', 'status_pagamento', 'pix', 'status_pix', 'forma_pagamento', 'forma_pagamento_status', 'pagamento_status']) || 'Não informado';
         const pagamentoCor = /pago|confirmado|pix|transfer|recebido|aprovado/i.test(pagamento) ? 'var(--success)' : /pendente|nao|falt|aguard|rejeit/i.test(pagamento) ? 'var(--danger)' : '#ddd';
+        const podeConfirmar = Boolean(c.data_agendamento && procedimento.startsWith('serviço:') && c.coluna_id !== 'fechado');
 
         const badgeContrato = c.contrato_assinado 
             ? `<span class="tag tag-contrato-ok">✍️ Contrato Assinado</span>`
@@ -525,26 +549,40 @@
             <div class="card" data-id="${escaparHtml(c.remote_jid)}">
                 <div class="card-name">${escaparHtml(c.nome)} <span style="font-size: 10px; color: var(--muted); font-weight: normal;">${escaparHtml(tagCriacao)}</span></div>
                 <div class="card-phone">📱 ${escaparHtml(c.telefone)}</div>
-                <div class="info-row"><strong>Procedimento:</strong> ${escaparHtml(procedimento)}</div>
+                <div class="info-row"><strong>Serviço:</strong> <span class="tag tag-servico">${escaparHtml(procedimento)}</span></div>
                 <div class="info-row"><strong>Pagamento:</strong> <span style="color:${pagamentoCor};">${escaparHtml(pagamento)}</span></div>
                 ${tagAgendamento}
                 <div class="tags-container">${badgeContrato}</div>
                 <div class="btn-group">
                     <a href="https://wa.me/${linkWhats}" target="_blank" class="btn-card" style="background: #166534; color: #fff;">WhatsApp</a>
                     <button class="btn-card" onclick="abrirModalContrato('${escaparHtml(c.remote_jid)}')">Assinar</button>
-                    <button class="btn-card confirm" onclick="abrirModalConfirmacao('${escaparHtml(c.remote_jid)}')">Agendar</button>
+                    ${podeConfirmar ? `<button class="btn-card confirm" onclick="abrirModalConfirmacao('${escaparHtml(c.remote_jid)}')">Confirmar horário</button>` : `<button class="btn-card confirm" disabled>${c.coluna_id === 'fechado' ? 'Agendamento confirmado' : 'Aguardando serviço e horário'}</button>`}
                 </div>
             </div>
         `;
     }
 
-    function abrirModalConfirmacao(remoteJid) { document.getElementById('confirmRemoteJid').value = remoteJid; document.getElementById('dataEscolhida').value = ''; abrirModal('modalConfirmarData'); }
+    function abrirModalConfirmacao(remoteJid) {
+        const cliente = clientesGlobais.find((item) => item.remote_jid === remoteJid);
+        const serviceTag = normalizarTagServico(cliente?.service_tag || cliente?.servico);
+        if (!cliente?.data_agendamento || !serviceTag || cliente.coluna_id === 'fechado') {
+            alert('Só é possível confirmar o serviço e o horário exatos que o cliente escolheu.');
+            return;
+        }
+        document.getElementById('confirmRemoteJid').value = remoteJid;
+        document.getElementById('confirmServiceTag').value = serviceTag;
+        document.getElementById('dataEscolhida').value = `${serviceTag} · ${formatarDataHoraString(cliente.data_agendamento)}`;
+        abrirModal('modalConfirmarData');
+    }
     async function enviarConfirmacao() {
-        const remoteJid = document.getElementById('confirmRemoteJid').value; const dataIso = document.getElementById('dataEscolhida').value;
-        if(!dataIso) { alert('Selecione uma data e hora.'); return; }
+        const remoteJid = document.getElementById('confirmRemoteJid').value;
+        const cliente = clientesGlobais.find((item) => item.remote_jid === remoteJid);
+        const serviceTag = normalizarTagServico(document.getElementById('confirmServiceTag').value);
+        if (!cliente?.data_agendamento || !serviceTag || cliente.coluna_id === 'fechado') { alert('O registro não contém um horário escolhido e um serviço válido.'); return; }
         try {
-            const res = await fetch(API_URL_POST, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessaoAtual.access_token}` }, body: JSON.stringify({ remote_jid: remoteJid, data_agendamento: dataIso }) });
-            if(res.ok) { alert(`✅ Confirmado!`); fecharModal('modalConfirmarData'); carregarDados(); }
+            const res = await fetch(API_URL_POST, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessaoAtual.access_token}` }, body: JSON.stringify({ remote_jid: remoteJid, data_agendamento: cliente.data_agendamento, service_tag: serviceTag }) });
+            if (!res.ok) throw new Error(`Falha ao confirmar: HTTP ${res.status}`);
+            alert('✅ Agendamento confirmado e alerta enviado.'); fecharModal('modalConfirmarData'); carregarDados();
         } catch(e) { alert("Erro de conexão."); }
     }
 
