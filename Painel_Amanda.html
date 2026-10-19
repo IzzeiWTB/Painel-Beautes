@@ -169,6 +169,29 @@
     </div>
 </div>
 
+<div class="agenda-control-bar" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span style="font-weight: 600; color: var(--accent); font-size: 14px; display: flex; align-items: center; gap: 6px;">
+            📅 Dia Aberto para Agendamentos:
+        </span>
+        <select id="selectDiaAtivo" onchange="alterarDiaAgenda(this.value)" class="filter-select" style="min-width: 170px; font-weight: 600; background: var(--bg); color: var(--text);">
+            <option value="segunda">Segunda-feira (Início)</option>
+            <option value="terca">Terça-feira</option>
+            <option value="quarta">Quarta-feira</option>
+            <option value="quinta">Quinta-feira</option>
+            <option value="sexta">Sexta-feira</option>
+        </select>
+        <span id="badgeVagasDia" class="tag" style="background: rgba(212, 175, 55, 0.15); color: var(--accent); border: 1px solid var(--accent); font-size: 12px; padding: 4px 10px; border-radius: 20px;">
+            Carregando vagas...
+        </span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn-card" onclick="avancarProximoDiaAgenda()" style="background: var(--accent); color: #000; font-weight: bold; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer;">
+            Avançar Dia (Lotou) ⏩
+        </button>
+    </div>
+</div>
+
 <div class="filters">
     <input type="text" id="searchInput" class="filter-input" placeholder="🔍 Buscar Nome..." oninput="renderizarKanban()">
     <select id="statusFilter" class="filter-select" onchange="renderizarKanban()">
@@ -260,6 +283,7 @@
 <script>
     const API_URL_GET = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-dashboard'; 
     const API_URL_POST = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-confirmar';
+    const API_URL_AGENDA_DIA = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-agenda-dia';
     const SUPABASE_URL = 'https://foxsxchuwguyahimkxfd.supabase.co';
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -323,6 +347,7 @@
         document.getElementById('loginScreen').hidden = true;
         document.getElementById('appContent').hidden = false;
         carregarDados();
+        carregarDiaAgenda();
         clearInterval(intervaloAtualizacao);
         intervaloAtualizacao = setInterval(carregarDados, 15000);
     }
@@ -378,7 +403,13 @@
             botox: 'botox',
             'toxina botulinica (botox)': 'botox',
             consulta: 'consulta',
+            'preenchimento labial': 'preenchimento-labial',
+            'preenchimento facial (full face)': 'preenchimento-facial-full-face',
+            'preenchimento facial': 'preenchimento-facial-full-face',
+            'full face': 'preenchimento-facial-full-face',
+            'fullface': 'preenchimento-facial-full-face',
             'preenchimento facial e labial': 'preenchimento',
+            preenchimento: 'preenchimento',
             'skin booster': 'skin-booster',
             'limpeza de pele profunda': 'limpeza-de-pele-profunda',
             'acompanhamento pos-operatorio': 'acompanhamento-pos-operatorio',
@@ -449,6 +480,7 @@
             }
 
             renderizarKanban();
+            atualizarResumoVagas();
             if (document.getElementById('modalAgenda').classList.contains('active')) renderizarAgenda();
         } catch (error) {
             console.error('Erro ao carregar painel:', error);
@@ -630,6 +662,90 @@
     function abrirModal(id) { document.getElementById(id).classList.add('active'); }
     function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
     function fecharModalSeClicarFora(e, id) { if (e.target.id === id) fecharModal(id); }
+
+    // =====================================================================
+    // GESTÃO DA AGENDA SEQUENCIAL (DIA ABERTO NA IA)
+    // =====================================================================
+    async function carregarDiaAgenda() {
+        if (!sessaoAtual?.access_token) return;
+        try {
+            const res = await fetch(API_URL_AGENDA_DIA, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessaoAtual.access_token}`
+                },
+                body: JSON.stringify({ action: 'get' })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.dia_aberto) {
+                    const select = document.getElementById('selectDiaAtivo');
+                    if (select) select.value = data.dia_aberto;
+                }
+            }
+        } catch (e) {
+            console.warn('Aviso ao carregar dia ativo da agenda:', e);
+        }
+        atualizarResumoVagas();
+    }
+
+    async function alterarDiaAgenda(novoDia) {
+        if (!sessaoAtual?.access_token) return;
+        try {
+            const res = await fetch(API_URL_AGENDA_DIA, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessaoAtual.access_token}`
+                },
+                body: JSON.stringify({ action: 'set', dia_aberto: novoDia })
+            });
+            if (res.ok) {
+                atualizarResumoVagas();
+            } else {
+                alert('Não foi possível salvar o novo dia da agenda.');
+            }
+        } catch (e) {
+            console.error('Erro ao salvar dia da agenda:', e);
+            alert('Erro de conexão ao salvar dia da agenda.');
+        }
+    }
+
+    function avancarProximoDiaAgenda() {
+        const select = document.getElementById('selectDiaAtivo');
+        if (!select) return;
+        const ordem = ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];
+        const idx = ordem.indexOf(select.value);
+        const proximo = ordem[(idx + 1) % ordem.length];
+        const nomes = { segunda: 'Segunda-feira', terca: 'Terça-feira', quarta: 'Quarta-feira', quinta: 'Quinta-feira', sexta: 'Sexta-feira' };
+        if (confirm(`Deseja fechar a agenda de ${nomes[select.value]} e abrir ${nomes[proximo]} para novos agendamentos na Bia?`)) {
+            select.value = proximo;
+            alterarDiaAgenda(proximo);
+        }
+    }
+
+    function atualizarResumoVagas() {
+        const badge = document.getElementById('badgeVagasDia');
+        const select = document.getElementById('selectDiaAtivo');
+        if (!badge || !select) return;
+        const diaSelecionado = select.value;
+        const diasMapa = { segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5 };
+        const targetDay = diasMapa[diaSelecionado] ?? 1;
+
+        let confirmadosNoDia = 0;
+        clientesGlobais.forEach(c => {
+            if (c.coluna_id === 'fechado' && c.data_agendamento) {
+                const d = converterDataSegura(c.data_agendamento);
+                if (d && d.getDay() === targetDay) {
+                    confirmadosNoDia++;
+                }
+            }
+        });
+
+        const statusTexto = confirmadosNoDia >= 9 ? '🔴 Agenda Cheia' : confirmadosNoDia > 0 ? '🟡 Em preenchimento' : '🟢 Vagas Livres';
+        badge.innerHTML = `<strong>${confirmadosNoDia}</strong> agendamento(s) confirmado(s) · ${statusTexto}`;
+    }
 </script>
 </body>
 </html>
