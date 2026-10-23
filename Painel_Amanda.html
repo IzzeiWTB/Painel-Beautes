@@ -579,6 +579,7 @@
         const tagCriacao = formatarApenasDataString(c.data_solicitacao);
         const isPreenchimentoLabial = /preenchimento-labial/i.test(procedimento) || /preenchimento.*lab/i.test(procedimento) || /preenchimento-labial/i.test(c.service_tag || '');
         const isBotox = /botox/i.test(procedimento) || /botox/i.test(c.service_tag || '') || /toxina/i.test(procedimento);
+        const isEndolaser = /endolaser/i.test(procedimento) || /endolaser/i.test(c.service_tag || '');
 
         return `
             <div class="card" data-id="${escaparHtml(c.remote_jid)}">
@@ -599,6 +600,9 @@
                 </div>` : isBotox ? `
                 <div style="margin-top: 6px;">
                     <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'botox')">Enviar Pós-Botox 💉</button>
+                </div>` : isEndolaser ? `
+                <div style="margin-top: 6px;">
+                    <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'endolaser')">Enviar Pós-Endolaser ⚡</button>
                 </div>` : ''}
             </div>
         `;
@@ -648,9 +652,10 @@
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                         <span class="agenda-status ${isConf ? 'status-fechado' : 'status-validar'}">${isConf ? '✅ Confirmado' : '⏳ Aguarda Validação'}</span>
-                        <div style="display: flex; gap: 4px; margin-top: 2px;">
+                        <div style="display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; justify-content: flex-end;">
                             <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'labial')">Pós-Labial 👄</button>
                             <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'botox')">Pós-Botox 💉</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'endolaser')">Pós-Endolaser ⚡</button>
                         </div>
                     </div>
                 </div>`;
@@ -764,7 +769,7 @@
     async function enviarPosProcedimento(remoteJid, nomeCliente, tipo = 'labial') {
         if (!remoteJid) return alert('Cliente sem número de WhatsApp cadastrado.');
         const nomeFormatado = nomeCliente ? `para ${nomeCliente}` : 'para este cliente';
-        const nomeProc = tipo === 'botox' ? 'Toxina Botulínica (Botox)' : 'Preenchimento Labial';
+        const nomeProc = tipo === 'botox' ? 'Toxina Botulínica (Botox)' : tipo === 'endolaser' ? 'Endolaser Pro' : 'Preenchimento Labial';
         const confirmou = confirm(`Deseja enviar a arte oficial e todas as recomendações de Pós-${nomeProc} ${nomeFormatado} via WhatsApp?`);
         if (!confirmou) return;
 
@@ -786,7 +791,7 @@
 
             const data = await res.json().catch(() => ({}));
             if (res.ok && (data.success || data.status === 'success' || data.message)) {
-                alert(`✅ Recomendações e arte de pós-${tipo === 'botox' ? 'botox' : 'preenchimento'} enviadas com sucesso no WhatsApp ${nomeFormatado}!`);
+                alert(`✅ Recomendações e arte de pós-${tipo === 'botox' ? 'botox' : tipo === 'endolaser' ? 'endolaser' : 'preenchimento'} enviadas com sucesso no WhatsApp ${nomeFormatado}!`);
             } else {
                 alert(`⚠️ Erro ao enviar: ${data.message || data.error || 'Falha ao processar no servidor.'}`);
             }
