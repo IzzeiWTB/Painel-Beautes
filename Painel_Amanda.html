@@ -580,6 +580,7 @@
         const isPreenchimentoLabial = /preenchimento-labial/i.test(procedimento) || /preenchimento.*lab/i.test(procedimento) || /preenchimento-labial/i.test(c.service_tag || '');
         const isBotox = /botox/i.test(procedimento) || /botox/i.test(c.service_tag || '') || /toxina/i.test(procedimento);
         const isEndolaser = /endolaser/i.test(procedimento) || /endolaser/i.test(c.service_tag || '');
+        const isCirurgiaFace = /cirurgia/i.test(procedimento) || /face/i.test(procedimento) || /facial/i.test(procedimento) || /lifting/i.test(procedimento) || /blefaro/i.test(procedimento) || /cervico/i.test(procedimento) || /cirurgia/i.test(c.service_tag || '');
 
         return `
             <div class="card" data-id="${escaparHtml(c.remote_jid)}">
@@ -603,6 +604,9 @@
                 </div>` : isEndolaser ? `
                 <div style="margin-top: 6px;">
                     <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'endolaser')">Enviar Pós-Endolaser ⚡</button>
+                </div>` : isCirurgiaFace ? `
+                <div style="margin-top: 6px;">
+                    <button class="btn-card" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'cirurgia_face')">Enviar Pós-Cirurgia Facial 🌸</button>
                 </div>` : ''}
             </div>
         `;
@@ -656,6 +660,7 @@
                             <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'labial')">Pós-Labial 👄</button>
                             <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'botox')">Pós-Botox 💉</button>
                             <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'endolaser')">Pós-Endolaser ⚡</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'cirurgia_face')">Pós-Cirurgia 🌸</button>
                         </div>
                     </div>
                 </div>`;
@@ -769,7 +774,7 @@
     async function enviarPosProcedimento(remoteJid, nomeCliente, tipo = 'labial') {
         if (!remoteJid) return alert('Cliente sem número de WhatsApp cadastrado.');
         const nomeFormatado = nomeCliente ? `para ${nomeCliente}` : 'para este cliente';
-        const nomeProc = tipo === 'botox' ? 'Toxina Botulínica (Botox)' : tipo === 'endolaser' ? 'Endolaser Pro' : 'Preenchimento Labial';
+        const nomeProc = tipo === 'botox' ? 'Toxina Botulínica (Botox)' : tipo === 'endolaser' ? 'Endolaser Pro' : tipo === 'cirurgia_face' ? 'Cirurgia Estética da Face' : 'Preenchimento Labial';
         const confirmou = confirm(`Deseja enviar a arte oficial e todas as recomendações de Pós-${nomeProc} ${nomeFormatado} via WhatsApp?`);
         if (!confirmou) return;
 
@@ -791,7 +796,8 @@
 
             const data = await res.json().catch(() => ({}));
             if (res.ok && (data.success || data.status === 'success' || data.message)) {
-                alert(`✅ Recomendações e arte de pós-${tipo === 'botox' ? 'botox' : tipo === 'endolaser' ? 'endolaser' : 'preenchimento'} enviadas com sucesso no WhatsApp ${nomeFormatado}!`);
+                const tipoDesc = tipo === 'botox' ? 'botox' : tipo === 'endolaser' ? 'endolaser' : tipo === 'cirurgia_face' ? 'cirurgia estética da face' : 'preenchimento';
+                alert(`✅ Recomendações e arte de pós-${tipoDesc} enviadas com sucesso no WhatsApp ${nomeFormatado}!`);
             } else {
                 alert(`⚠️ Erro ao enviar: ${data.message || data.error || 'Falha ao processar no servidor.'}`);
             }
