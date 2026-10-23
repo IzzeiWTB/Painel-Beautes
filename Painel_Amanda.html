@@ -284,6 +284,7 @@
     const API_URL_GET = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-dashboard'; 
     const API_URL_POST = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-confirmar';
     const API_URL_AGENDA_DIA = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-agenda-dia';
+    const API_URL_POS_PREENCHIMENTO = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-pos-preenchimento';
     const SUPABASE_URL = 'https://foxsxchuwguyahimkxfd.supabase.co';
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -576,6 +577,7 @@
             : `<span class="tag tag-contrato-pendente">⚠️ Sem Contrato</span>`;
 
         const tagCriacao = formatarApenasDataString(c.data_solicitacao);
+        const isPreenchimentoLabial = /preenchimento-labial/i.test(procedimento) || /preenchimento.*lab/i.test(procedimento) || /preenchimento-labial/i.test(c.service_tag || '');
 
         return `
             <div class="card" data-id="${escaparHtml(c.remote_jid)}">
@@ -590,6 +592,10 @@
                     <button class="btn-card" onclick="abrirModalContrato('${escaparHtml(c.remote_jid)}')">Assinar</button>
                     ${podeConfirmar ? `<button class="btn-card confirm" onclick="abrirModalConfirmacao('${escaparHtml(c.remote_jid)}')">Confirmar horário</button>` : `<button class="btn-card confirm" disabled>${c.coluna_id === 'fechado' ? 'Agendamento confirmado' : 'Aguardando serviço e horário'}</button>`}
                 </div>
+                ${isPreenchimentoLabial ? `
+                <div style="margin-top: 6px;">
+                    <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosPreenchimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}')">Enviar Pós-Labial 👄</button>
+                </div>` : ''}
             </div>
         `;
     }
@@ -636,8 +642,9 @@
                         <div class="agenda-item-info"><h4>${escaparHtml(c.nome)}</h4><p>📱 ${escaparHtml(c.telefone)} | 💆‍♀️ <strong>${escaparHtml(procedimento)}</strong></p><p>💳 Pagamento: <strong>${escaparHtml(pagamento)}</strong></p>${htmlData}</div>
                         <div class="agenda-item-msg"><strong>Msg do cliente:</strong><br> "${escaparHtml(c.ultima_mensagem_cliente || 'Sem mensagem')}"</div>
                     </div>
-                    <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                         <span class="agenda-status ${isConf ? 'status-fechado' : 'status-validar'}">${isConf ? '✅ Confirmado' : '⏳ Aguarda Validação'}</span>
+                        <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; font-weight: 600; border: none; padding: 3px 8px; font-size: 11px; border-radius: 4px; cursor: pointer;" onclick="enviarPosPreenchimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}')">Pós-Labial 👄</button>
                     </div>
                 </div>`;
         }).join('');
@@ -745,6 +752,39 @@
 
         const statusTexto = confirmadosNoDia >= 9 ? '🔴 Agenda Cheia' : confirmadosNoDia > 0 ? '🟡 Em preenchimento' : '🟢 Vagas Livres';
         badge.innerHTML = `<strong>${confirmadosNoDia}</strong> agendamento(s) confirmado(s) · ${statusTexto}`;
+    }
+
+    async function enviarPosPreenchimento(remoteJid, nomeCliente) {
+        if (!remoteJid) return alert('Cliente sem número de WhatsApp cadastrado.');
+        const nomeFormatado = nomeCliente ? `para ${nomeCliente}` : 'para este cliente';
+        const confirmou = confirm(`Deseja enviar a arte oficial e todas as recomendações de Pós-Preenchimento Labial ${nomeFormatado} via WhatsApp?`);
+        if (!confirmou) return;
+
+        try {
+            const token = sessaoAtual?.access_token || '';
+            const res = await fetch(API_URL_POS_PREENCHIMENTO, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    remoteJid,
+                    nome: nomeCliente || 'Cliente',
+                    token
+                })
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && (data.success || data.status === 'success' || data.message)) {
+                alert(`✅ Recomendações e arte pós-preenchimento enviadas com sucesso no WhatsApp ${nomeFormatado}!`);
+            } else {
+                alert(`⚠️ Erro ao enviar: ${data.message || data.error || 'Falha ao processar no servidor.'}`);
+            }
+        } catch (err) {
+            console.error('Erro ao enviar pós-preenchimento:', err);
+            alert('❌ Falha na conexão ao tentar enviar as recomendações. Verifique o servidor.');
+        }
     }
 </script>
 </body>
