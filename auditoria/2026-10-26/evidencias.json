@@ -1,0 +1,212 @@
+{
+  "auditDate": "2026-10-26",
+  "timezone": "America/Sao_Paulo",
+  "gitHead": "3487aa43357dcdce0dad58c5ba093782bdbf4ae2",
+  "workflows": [
+    {
+      "id": "FOmnncnOeXOaj7xd",
+      "file": "Bia Beautes - WhatsApp Evolution V4.5 + Redis Debounce 10s (2).json",
+      "nodes": 58,
+      "active": true,
+      "updatedAt": "2026-10-23T18:42:49.721Z",
+      "versionId": "37efc50a-d8a8-409e-bfb9-0a02a5c92f4e",
+      "activeVersionId": "37efc50a-d8a8-409e-bfb9-0a02a5c92f4e",
+      "connectionsMatch": true,
+      "settingsMatch": true,
+      "parameterDifferences": [
+        "Enviar Imagem Beautes",
+        "Reivindicar Alerta de Solicitação"
+      ],
+      "executions": {
+        "success": 50
+      }
+    },
+    {
+      "id": "Ldox1WUD00OGkgfL",
+      "file": "Beautes - API Kanban Dashboard (2).json",
+      "nodes": 29,
+      "active": true,
+      "updatedAt": "2026-10-23T18:40:06.477Z",
+      "versionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "activeVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "connectionsMatch": true,
+      "settingsMatch": true,
+      "parameterDifferences": [],
+      "executions": {
+        "success": 5,
+        "error": 45
+      }
+    }
+  ],
+  "executions": [
+    {
+      "id": "7701",
+      "status": "success",
+      "startedAt": "2026-10-26T11:26:54.369Z",
+      "workflowVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "lastNode": "Buscar Pendentes (View)",
+      "requestHasAuthorization": true,
+      "origin": "https://izzeiwtb.github.io",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 OPR/137.0.0.0 (Edition std-2)",
+      "nodeOutputFields": {
+        "Buscar Pendentes (View)": {
+          "count": 86,
+          "fields": [
+            "remote_jid",
+            "nome",
+            "telefone",
+            "servico",
+            "status",
+            "ultima_mensagem_cliente",
+            "data_solicitacao",
+            "data_agendamento",
+            "handoff"
+          ]
+        }
+      }
+    },
+    {
+      "id": "7700",
+      "status": "success",
+      "startedAt": "2026-10-26T11:26:39.670Z",
+      "workflowVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "lastNode": "Buscar Pendentes (View)",
+      "requestHasAuthorization": true,
+      "origin": "https://izzeiwtb.github.io",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 OPR/137.0.0.0 (Edition std-2)",
+      "nodeOutputFields": {
+        "Buscar Pendentes (View)": {
+          "count": 86,
+          "fields": [
+            "remote_jid",
+            "nome",
+            "telefone",
+            "servico",
+            "status",
+            "ultima_mensagem_cliente",
+            "data_solicitacao",
+            "data_agendamento",
+            "handoff"
+          ]
+        }
+      }
+    },
+    {
+      "id": "7693",
+      "status": "success",
+      "startedAt": "2026-10-23T18:16:30.147Z",
+      "workflowVersionId": "1ebf750a-f0fc-4933-95ac-a34f6c2a0b8e",
+      "lastNode": "Responder Evento Ignorado",
+      "requestHasAuthorization": false,
+      "userAgent": "node",
+      "nodeOutputFields": {}
+    },
+    {
+      "id": "7374",
+      "status": "success",
+      "startedAt": "2026-10-20T13:40:11.521Z",
+      "workflowVersionId": "4cc54ae7-ed9d-4479-8c75-aa2893ea44eb",
+      "lastNode": "Cliente confirmou serviço e horário?",
+      "requestHasAuthorization": false,
+      "userAgent": "axios/1.13.2",
+      "nodeOutputFields": {
+        "Ler Dia Aberto Agenda": {
+          "count": 1,
+          "fields": [
+            "dia_aberto_raw"
+          ]
+        },
+        "Ler Estado Agendamento": {
+          "count": 1,
+          "fields": [
+            "booking_state_raw"
+          ]
+        },
+        "Salvar Evento Enviado": {
+          "count": 1,
+          "fields": [
+            "id",
+            "created_at",
+            "tenant_slug",
+            "channel_type",
+            "external_conversation_id",
+            "external_message_id",
+            "direction",
+            "sender_type",
+            "contact_name",
+            "contact_handle",
+            "message_text",
+            "service",
+            "stage",
+            "handoff",
+            "response_text",
+            "raw_payload",
+            "delivery_status",
+            "data_agendamento"
+          ]
+        }
+      }
+    },
+    {
+      "id": "7696",
+      "status": "error",
+      "startedAt": "2026-10-23T18:28:39.760Z",
+      "workflowVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "lastNode": "Validar Sessão GET",
+      "requestHasAuthorization": false,
+      "userAgent": "node",
+      "error": "Authorization failed - please check your credentials",
+      "nodeOutputFields": {}
+    },
+    {
+      "id": "7695",
+      "status": "error",
+      "startedAt": "2026-10-23T18:27:55.765Z",
+      "workflowVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "lastNode": "Validar Sessão Agenda",
+      "requestHasAuthorization": false,
+      "userAgent": "node",
+      "error": "Authorization failed - please check your credentials",
+      "nodeOutputFields": {}
+    },
+    {
+      "id": "7694",
+      "status": "error",
+      "startedAt": "2026-10-23T18:27:54.921Z",
+      "workflowVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "lastNode": "Validar Sessão Pos-Preenchimento",
+      "requestHasAuthorization": false,
+      "userAgent": "node",
+      "error": "Authorization failed - please check your credentials",
+      "nodeOutputFields": {}
+    }
+  ],
+  "publicPanelMatchesIgnoringCRLF": true,
+  "publicAssets": {
+    "allFivePostCareImagesMatchBytes": true,
+    "coworkingImagesAllHTTP200": true
+  },
+  "anonymousRead": {
+    "method": "HEAD",
+    "usedUserSession": false,
+    "channel_events": {
+      "status": 200,
+      "contentRange": "*/0"
+    },
+    "view_kanban_beautes": {
+      "status": 206,
+      "contentRange": "0-0/86"
+    }
+  },
+  "authSettings": {
+    "disable_signup": false,
+    "mailer_autoconfirm": false
+  },
+  "unauthenticatedDashboard": {
+    "status": 500,
+    "body": {
+      "message": "Error in workflow"
+    }
+  },
+  "supabaseMcp": "Permission denied; schema, grants, RLS policies and advisors could not be inspected"
+}

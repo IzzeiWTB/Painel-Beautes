@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Beautes - Kanban & Agenda</title>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* =====================================================================
@@ -283,6 +283,7 @@
 <script>
     const API_URL_GET = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-dashboard'; 
     const API_URL_POST = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-confirmar';
+    const API_URL_CONTATO = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-painel-contato';
     const API_URL_AGENDA_DIA = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-agenda-dia';
     const API_URL_POS_PREENCHIMENTO = 'https://amanda-n8n.iq7svn.easypanel.host/webhook/beautes-pos-preenchimento';
     const SUPABASE_URL = 'https://foxsxchuwguyahimkxfd.supabase.co';
@@ -302,7 +303,7 @@
         { id: 'fechado', label: '🏆 Fechado', cor: '#10b981' }
     ];
 
-    window.onload = () => { inicializarLogin(); inicializarCanvas(); };
+    window.onload = () => { inicializarLogin(); inicializarCanvas(); registrarAcoesPainel(); };
 
     async function inicializarLogin() {
         const loginForm = document.getElementById('loginForm');
@@ -442,6 +443,7 @@
             const timeout = setTimeout(() => controller.abort(), 20000);
             const response = await fetch(API_URL_GET, { method: 'GET', cache: 'no-store', signal: controller.signal, headers: { Authorization: `Bearer ${sessaoAtual.access_token}` } });
             clearTimeout(timeout);
+            if (response.status === 401) { await encerrarSessao(false); throw new Error('Sua sessão expirou. Entre novamente.'); }
             if (!response.ok) throw new Error(`Servidor respondeu HTTP ${response.status}`);
             const rawData = await response.json();
 
@@ -469,7 +471,7 @@
                     data_agendamento: cliente.data_agendamento,
                     remote_jid: cliente.remote_jid || cliente.external_conversation_id,
                     ultima_mensagem_cliente: cliente.ultima_mensagem_cliente || '',
-                    coluna_id: colunaFinal,
+                    coluna_id: colunaFinal === 'fechado' ? 'fechado' : (['novos_leads','qualificacao','aguardando_validacao'].includes(cliente.coluna_id) ? cliente.coluna_id : colunaFinal),
                     contrato_assinado: cliente.contrato_assinado || false,
                     assinatura_url: cliente.assinatura_url || ''
                 };
@@ -544,7 +546,7 @@
             if (colBody) {
                 new Sortable(colBody, {
                     group: 'pipeline_beautes', animation: 150, delay: 50, delayOnTouchOnly: true,
-                    onEnd: function (evt) {
+                    onEnd: async function (evt) {
                         const remoteJid = evt.item.getAttribute('data-id');
                         const novaColunaId = evt.to.id.replace('col-', '');
                         const cliente = clientesGlobais.find(c => c.remote_jid === remoteJid);
@@ -570,7 +572,7 @@
         const procedimento = normalizarTagServico(c.service_tag || extrairTextoCliente(c, ['procedimento', 'procedimento_desejado', 'tipo_procedimento', 'service_name', 'service_label', 'nome_servico', 'servico', 'service', 'servico_desejado', 'tratamento', 'procedimento_cliente'])) || 'Não informado';
         const pagamento = extrairTextoCliente(c, ['pagamento', 'status_pagamento', 'pix', 'status_pix', 'forma_pagamento', 'forma_pagamento_status', 'pagamento_status']) || 'Não informado';
         const pagamentoCor = /pago|confirmado|pix|transfer|recebido|aprovado/i.test(pagamento) ? 'var(--success)' : /pendente|nao|falt|aguard|rejeit/i.test(pagamento) ? 'var(--danger)' : '#ddd';
-        const podeConfirmar = Boolean(c.data_agendamento && procedimento.startsWith('serviço:') && c.coluna_id !== 'fechado');
+        const podeConfirmar = Boolean(c.data_agendamento && procedimento.startsWith('serviço:'));
 
         const badgeContrato = c.contrato_assinado 
             ? `<span class="tag tag-contrato-ok">✍️ Contrato Assinado</span>`
@@ -592,22 +594,22 @@
                 <div class="tags-container">${badgeContrato}</div>
                 <div class="btn-group">
                     <a href="https://wa.me/${linkWhats}" target="_blank" class="btn-card" style="background: #166534; color: #fff;">WhatsApp</a>
-                    <button class="btn-card" onclick="abrirModalContrato('${escaparHtml(c.remote_jid)}')">Assinar</button>
-                    ${podeConfirmar ? `<button class="btn-card confirm" onclick="abrirModalConfirmacao('${escaparHtml(c.remote_jid)}')">Confirmar horário</button>` : `<button class="btn-card confirm" disabled>${c.coluna_id === 'fechado' ? 'Agendamento confirmado' : 'Aguardando serviço e horário'}</button>`}
+                    <button class="btn-card" data-action="assinar" data-jid="${escaparHtml(c.remote_jid)}">Assinar</button>
+                    ${podeConfirmar ? `<button class="btn-card confirm" data-action="confirmar" data-jid="${escaparHtml(c.remote_jid)}">${c.coluna_id === 'fechado' ? 'Reenviar confirmação' : 'Confirmar horário'}</button>` : `<button class="btn-card confirm" disabled>${c.coluna_id === 'fechado' ? 'Agendamento confirmado' : 'Aguardando serviço e horário'}</button>`}
                 </div>
                 ${isPreenchimentoLabial ? `
                 <div style="margin-top: 6px;">
-                    <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'labial')">Enviar Pós-Labial 👄</button>
+                    <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="labial">Enviar Pós-Labial 👄</button>
                 </div>` : isBotox ? `
                 <div style="margin-top: 6px;">
-                    <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'botox')">Enviar Pós-Botox 💉</button>
+                    <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="botox">Enviar Pós-Botox 💉</button>
                 </div>` : isEndolaser ? `
                 <div style="margin-top: 6px; display: flex; gap: 4px;">
-                    <button class="btn-card" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; flex: 1; font-weight: 600; border: none; padding: 6px 4px; font-size: 11px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'o_que_trazer_endolaser')">O Que Trazer 🎒</button>
-                    <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; flex: 1; font-weight: 600; border: none; padding: 6px 4px; font-size: 11px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'endolaser')">Pós-Endolaser ⚡</button>
+                    <button class="btn-card" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; flex: 1; font-weight: 600; border: none; padding: 6px 4px; font-size: 11px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="o_que_trazer_endolaser">O Que Trazer 🎒</button>
+                    <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; flex: 1; font-weight: 600; border: none; padding: 6px 4px; font-size: 11px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="endolaser">Pós-Endolaser ⚡</button>
                 </div>` : isCirurgiaFace ? `
                 <div style="margin-top: 6px;">
-                    <button class="btn-card" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'cirurgia_face')">Enviar Pós-Cirurgia Facial 🌸</button>
+                    <button class="btn-card" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; width: 100%; font-weight: 600; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="cirurgia_face">Enviar Pós-Cirurgia Facial 🌸</button>
                 </div>` : ''}
             </div>
         `;
@@ -616,7 +618,7 @@
     function abrirModalConfirmacao(remoteJid) {
         const cliente = clientesGlobais.find((item) => item.remote_jid === remoteJid);
         const serviceTag = normalizarTagServico(cliente?.service_tag || cliente?.servico);
-        if (!cliente?.data_agendamento || !serviceTag || cliente.coluna_id === 'fechado') {
+        if (!cliente?.data_agendamento || !serviceTag) {
             alert('Só é possível confirmar o serviço e o horário exatos que o cliente escolheu.');
             return;
         }
@@ -625,16 +627,21 @@
         document.getElementById('dataEscolhida').value = `${serviceTag} · ${formatarDataHoraString(cliente.data_agendamento)}`;
         abrirModal('modalConfirmarData');
     }
+    let confirmacaoEmAndamento = false;
     async function enviarConfirmacao() {
+        if (confirmacaoEmAndamento) return;
         const remoteJid = document.getElementById('confirmRemoteJid').value;
-        const cliente = clientesGlobais.find((item) => item.remote_jid === remoteJid);
+        const cliente = clientesGlobais.find(item => item.remote_jid === remoteJid);
         const serviceTag = normalizarTagServico(document.getElementById('confirmServiceTag').value);
-        if (!cliente?.data_agendamento || !serviceTag || cliente.coluna_id === 'fechado') { alert('O registro não contém um horário escolhido e um serviço válido.'); return; }
+        if (!cliente?.data_agendamento || !serviceTag) { alert('O registro não contém serviço e horário válidos.'); return; }
+        confirmacaoEmAndamento = true;
         try {
-            const res = await fetch(API_URL_POST, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessaoAtual.access_token}` }, body: JSON.stringify({ remote_jid: remoteJid, data_agendamento: cliente.data_agendamento, service_tag: serviceTag }) });
-            if (!res.ok) throw new Error(`Falha ao confirmar: HTTP ${res.status}`);
-            alert('✅ Agendamento confirmado e alerta enviado.'); fecharModal('modalConfirmarData'); carregarDados();
-        } catch(e) { alert("Erro de conexão."); }
+            const data = await requisitarAPI(API_URL_POST, { remote_jid: remoteJid, data_agendamento: cliente.data_agendamento, service_tag: serviceTag });
+            if (data.sucesso !== true || data.delivery_status !== 'sent') throw new Error('O servidor não confirmou o envio. Atualize e tente novamente.');
+            alert('✅ Agendamento confirmado e mensagem enviada ao cliente.');
+            fecharModal('modalConfirmarData'); await carregarDados();
+        } catch (error) { alert(error.message); await carregarDados(); }
+        finally { confirmacaoEmAndamento = false; }
     }
 
     function abrirAgenda() { renderizarAgenda(); abrirModal('modalAgenda'); }
@@ -658,11 +665,11 @@
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                         <span class="agenda-status ${isConf ? 'status-fechado' : 'status-validar'}">${isConf ? '✅ Confirmado' : '⏳ Aguarda Validação'}</span>
                         <div style="display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; justify-content: flex-end;">
-                            <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'labial')">Pós-Labial 👄</button>
-                            <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'botox')">Pós-Botox 💉</button>
-                            <button class="btn-card" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'o_que_trazer_endolaser')">O Que Trazer 🎒</button>
-                            <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'endolaser')">Pós-Endolaser ⚡</button>
-                            <button class="btn-card" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" onclick="enviarPosProcedimento('${escaparHtml(c.remote_jid)}', '${escaparHtml(c.nome)}', 'cirurgia_face')">Pós-Cirurgia 🌸</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #be185d, #9d174d); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="labial">Pós-Labial 👄</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="botox">Pós-Botox 💉</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="o_que_trazer_endolaser">O Que Trazer 🎒</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="endolaser">Pós-Endolaser ⚡</button>
+                            <button class="btn-card" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; font-weight: 600; border: none; padding: 3px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;" data-action="pos" data-jid="${escaparHtml(c.remote_jid)}" data-nome="${escaparHtml(c.nome)}" data-tipo="cirurgia_face">Pós-Cirurgia 🌸</button>
                         </div>
                     </div>
                 </div>`;
@@ -682,9 +689,48 @@
     function getPos(e) { const rect = canvas.getBoundingClientRect(); const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY; return { x: (cx - rect.left) * (canvas.width / rect.width), y: (cy - rect.top) * (canvas.height / rect.height) }; }
     function limparAssinatura() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
     function abrirModalContrato(rJid) { document.getElementById('contratoRemoteJid').value = rJid; limparAssinatura(); const c = clientesGlobais.find(x => x.remote_jid === rJid); if (c && c.assinatura_url) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = c.assinatura_url; } abrirModal('modalContrato'); }
-    function salvarAssinaturaLead() { const rJid = document.getElementById('contratoRemoteJid').value; const c = clientesGlobais.find(x => x.remote_jid === rJid); if (c) { c.assinatura_url = canvas.toDataURL(); c.contrato_assinado = true; renderizarKanban(); fecharModal('modalContrato'); } }
+    async function salvarAssinaturaLead() {
+        const remote_jid = document.getElementById('contratoRemoteJid').value;
+        try { await salvarContato({ action: 'assinatura', remote_jid, assinatura_url: canvas.toDataURL('image/png') }); fecharModal('modalContrato'); await carregarDados(); }
+        catch (error) { alert(error.message); }
+    }
 
-    function salvarNovoCliente(e) { e.preventDefault(); const tel = document.getElementById('leadPhone').value.replace(/\D/g, ''); clientesGlobais.unshift({ nome: document.getElementById('leadNome').value, telefone: tel, servico: document.getElementById('leadServico').value || 'Pendente', data_solicitacao: new Date().toISOString(), remote_jid: `${tel}@s.whatsapp.net`, coluna_id: 'novos_leads', contrato_assinado: false }); renderizarKanban(); fecharModal('modalNovoCliente'); document.getElementById('formNovoCliente').reset(); }
+    async function salvarNovoCliente(e) {
+        e.preventDefault();
+        try {
+            await salvarContato({ action: 'cadastro', telefone: document.getElementById('leadPhone').value, nome: document.getElementById('leadNome').value, servico: document.getElementById('leadServico').value });
+            fecharModal('modalNovoCliente'); document.getElementById('formNovoCliente').reset(); await carregarDados();
+        } catch (error) { alert(error.message); }
+    }
+    async function requisitarAPI(url, body) {
+        if (!sessaoAtual?.access_token) throw new Error('Entre novamente no painel.');
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
+        try {
+            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sessaoAtual.access_token }, body: JSON.stringify(body), signal: controller.signal });
+            const data = await response.json().catch(() => ({}));
+            if (response.status === 401) { await encerrarSessao(false); throw new Error('Sua sessão expirou. Entre novamente.'); }
+            if (!response.ok || (data.success !== true && data.sucesso !== true)) throw new Error(data.message || data.mensagem || 'O servidor não confirmou a operação.');
+            return data;
+        } catch (error) { if (error.name === 'AbortError') throw new Error('A operação demorou. Atualize o painel antes de tentar novamente.'); throw error; }
+        finally { clearTimeout(timer); }
+    }
+    const salvarContato = body => requisitarAPI(API_URL_CONTATO, body);
+
+    function registrarAcoesPainel() {
+        document.addEventListener('click', async event => {
+            const button = event.target.closest('[data-action]');
+            if (!button || button.disabled) return;
+            const { action, jid, nome, tipo } = button.dataset;
+            if (action === 'assinar') abrirModalContrato(jid);
+            else if (action === 'confirmar') abrirModalConfirmacao(jid);
+            else if (action === 'pos') {
+                button.disabled = true;
+                try { await enviarPosProcedimento(jid, nome, tipo); } finally { button.disabled = false; }
+            }
+        });
+    }
+
     function abrirModal(id) { document.getElementById(id).classList.add('active'); }
     function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
     function fecharModalSeClicarFora(e, id) { if (e.target.id === id) fecharModal(id); }
@@ -692,50 +738,24 @@
     // =====================================================================
     // GESTÃO DA AGENDA SEQUENCIAL (DIA ABERTO NA IA)
     // =====================================================================
+    let diaAgendaSalvo = 'segunda';
     async function carregarDiaAgenda() {
         if (!sessaoAtual?.access_token) return;
         try {
-            const res = await fetch(API_URL_AGENDA_DIA, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${sessaoAtual.access_token}`
-                },
-                body: JSON.stringify({ action: 'get' })
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.dia_aberto) {
-                    const select = document.getElementById('selectDiaAtivo');
-                    if (select) select.value = data.dia_aberto;
-                }
+            const data = await requisitarAPI(API_URL_AGENDA_DIA, { action: 'get' });
+            if (['segunda','terca','quarta','quinta','sexta'].includes(data.dia_aberto)) {
+                diaAgendaSalvo = data.dia_aberto;
+                document.getElementById('selectDiaAtivo').value = diaAgendaSalvo;
             }
-        } catch (e) {
-            console.warn('Aviso ao carregar dia ativo da agenda:', e);
-        }
+        } catch (error) { console.warn('Falha ao carregar dia da agenda:', error.message); }
         atualizarResumoVagas();
     }
-
     async function alterarDiaAgenda(novoDia) {
-        if (!sessaoAtual?.access_token) return;
-        try {
-            const res = await fetch(API_URL_AGENDA_DIA, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${sessaoAtual.access_token}`
-                },
-                body: JSON.stringify({ action: 'set', dia_aberto: novoDia })
-            });
-            if (res.ok) {
-                atualizarResumoVagas();
-            } else {
-                alert('Não foi possível salvar o novo dia da agenda.');
-            }
-        } catch (e) {
-            console.error('Erro ao salvar dia da agenda:', e);
-            alert('Erro de conexão ao salvar dia da agenda.');
-        }
+        const select = document.getElementById('selectDiaAtivo');
+        select.disabled = true;
+        try { await requisitarAPI(API_URL_AGENDA_DIA, { action: 'set', dia_aberto: novoDia }); diaAgendaSalvo = novoDia; }
+        catch (error) { select.value = diaAgendaSalvo; alert(error.message); }
+        finally { select.disabled = false; atualizarResumoVagas(); }
     }
 
     function avancarProximoDiaAgenda() {
@@ -751,26 +771,24 @@
         }
     }
 
+    function dataAgendaSelecionada(dia, now = new Date()) {
+        const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now).filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+        const date = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+        const target = { segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5 }[dia] ?? 1;
+        date.setUTCDate(date.getUTCDate() + (target - date.getUTCDay() + 7) % 7);
+        return date.toISOString().slice(0,10);
+    }
     function atualizarResumoVagas() {
         const badge = document.getElementById('badgeVagasDia');
         const select = document.getElementById('selectDiaAtivo');
         if (!badge || !select) return;
-        const diaSelecionado = select.value;
-        const diasMapa = { segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5 };
-        const targetDay = diasMapa[diaSelecionado] ?? 1;
-
-        let confirmadosNoDia = 0;
-        clientesGlobais.forEach(c => {
-            if (c.coluna_id === 'fechado' && c.data_agendamento) {
-                const d = converterDataSegura(c.data_agendamento);
-                if (d && d.getDay() === targetDay) {
-                    confirmadosNoDia++;
-                }
-            }
-        });
-
-        const statusTexto = confirmadosNoDia >= 9 ? '🔴 Agenda Cheia' : confirmadosNoDia > 0 ? '🟡 Em preenchimento' : '🟢 Vagas Livres';
-        badge.innerHTML = `<strong>${confirmadosNoDia}</strong> agendamento(s) confirmado(s) · ${statusTexto}`;
+        const dateKey = dataAgendaSelecionada(select.value);
+        const dateOf = value => {
+            const date = converterDataSegura(value); if (!date) return '';
+            return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+        };
+        const confirmed = clientesGlobais.filter(c => c.coluna_id === 'fechado' && dateOf(c.data_agendamento) === dateKey).length;
+        badge.innerHTML = '<strong>' + confirmed + '</strong> confirmado(s) em ' + dateKey.split('-').reverse().join('/') + ' · Confira os horários na agenda';
     }
 
     async function enviarPosProcedimento(remoteJid, nomeCliente, tipo = 'labial') {
@@ -800,7 +818,7 @@
             });
 
             const data = await res.json().catch(() => ({}));
-            if (res.ok && (data.success || data.status === 'success' || data.message)) {
+            if (res.ok && data.success === true) {
                 const tipoDesc = tipo === 'botox' ? 'botox' : tipo === 'endolaser' ? 'endolaser' : tipo === 'cirurgia_face' ? 'cirurgia estética da face' : tipo === 'o_que_trazer_endolaser' ? 'o que trazer no endolaser' : 'preenchimento';
                 alert(`✅ Arte e orientações de ${tipoDesc} enviadas com sucesso no WhatsApp ${nomeFormatado}!`);
             } else {

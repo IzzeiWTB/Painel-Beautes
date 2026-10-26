@@ -1,7 +1,6 @@
 # Project Coding Standards
 
-This file applies to GitHub Copilot in this repository and serves as a template for other projects.
-Copy the relevant sections to your project's `.github/copilot-instructions.md`.
+These instructions apply to Beautes. Read `AGENTS.md` for business rules, verification commands and publication scope.
 
 ## Testing
 - Write tests before code (TDD) — follow `test-driven-development` skill
@@ -11,7 +10,7 @@ Copy the relevant sections to your project's `.github/copilot-instructions.md`.
 
 ## Code Quality
 - Review across five axes: correctness, readability, architecture, security, performance
-- Every commit must pass: lint, type check, tests
+- Before committing, run the Node tests and audit probe listed in `AGENTS.md`; no lint/typecheck or npm package is configured here.
 - No secrets in code or version control
 
 ## Implementation
@@ -28,5 +27,5 @@ Copy the relevant sections to your project's `.github/copilot-instructions.md`.
 
 ## Boundaries
 - **Always:** Run tests before commits, validate user input, check for secrets
-- **Ask first:** Database schema changes, new dependencies, architectural decisions
+- **Confirm scope when not already authorized:** Database schema changes, new dependencies, architectural decisions. Authorization already given in the session remains valid.
 - **Never:** Commit secrets, remove failing tests, skip verification

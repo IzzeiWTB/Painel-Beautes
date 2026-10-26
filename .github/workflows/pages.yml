@@ -24,6 +24,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Verify workflows and panel
+        run: |
+          node --test tests/scheduling-flow.test.js tests/coworking-flow.test.js tests/api-confirmation.test.js tests/integration-boundaries.test.js
+          node auditoria/2026-10-26/verificar-requisitos.cjs
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

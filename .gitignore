@@ -1,3 +1,5 @@
 
-.github/skills
-.github/skills/
+.audit-work/
+.env
+.env.local
+.env.*.local

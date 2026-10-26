@@ -11,8 +11,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        -272,
-        304
+        0,
+        360
       ],
       "id": "fc0ba9f0-46d9-4780-94c5-e48e5f547cf1",
       "name": "Webhook WhatsApp Evolution",
@@ -20,13 +20,13 @@
     },
     {
       "parameters": {
-        "jsCode": "function env(name, fallback = '') { let value = ''; try { value = $env[name] || ''; } catch (e) {} return value || fallback; }\nfunction text(value) { return String(value || '').trim(); }\nconst input = typeof $json.body === 'string' ? JSON.parse($json.body || '{}') : ($json.body || $json);\nconst event = text(input.event || input.type).toLowerCase();\nconst data = input.data || input;\nconst key = data.key || data.message?.key || {};\nconst remoteJid = text(key.remoteJid || key.remoteJidAlt || data.remoteJid);\nconst message = data.message || {};\nconst messageType = text(data.messageType || Object.keys(message)[0] || 'conversation');\nlet messageText = text(message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || message.videoMessage?.caption || message.documentMessage?.caption);\nlet contentType = 'text';\nlet base64 = text(data.base64 || message.base64 || message.audioMessage?.base64);\nif (!messageText && messageType.toLowerCase().includes('audio')) { contentType = 'audio'; messageText = '[audio]'; }\nelse if (!messageText) { contentType = messageType.replace(/Message$/i, '').toLowerCase() || 'unknown'; messageText = '[' + contentType + ']'; }\nconst phone = remoteJid.split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst eventSupported = !event || ['messages.upsert', 'messages.update'].includes(event);\nconst ignoredReason = !eventSupported ? 'event_not_supported' : key.fromMe || data.fromMe ? 'outbound_event' : !remoteJid ? 'missing_remote_jid' : remoteJid.includes('@g.us') || remoteJid === 'status@broadcast' ? 'group_or_status' : !phone ? 'missing_phone' : '';\nreturn { json: { shouldProcess: !ignoredReason, ignoredReason, event, tenant_slug: 'beautes', instance: text(input.instance || input.instanceName || 'Amanda'), remoteJid, phone, messageId: text(key.id || data.id || remoteJid + ':' + Date.now()), contactName: text(data.pushName || data.senderName || phone), messageText, contentType, base64, raw_payload: input, channel_type: 'whatsapp' } };"
+        "jsCode": "function env(name, fallback = '') { let value = ''; try { value = $env[name] || ''; } catch (e) {} return value || fallback; }\nfunction text(value) { return String(value || '').trim(); }\nconst input = typeof $json.body === 'string' ? JSON.parse($json.body || '{}') : ($json.body || $json);\nconst event = text(input.event || input.type).toLowerCase();\nconst data = input.data || input;\nconst key = data.key || data.message?.key || {};\nconst remoteJid = text(key.remoteJid || key.remoteJidAlt || data.remoteJid);\nconst message = data.message || {};\nconst messageType = text(data.messageType || Object.keys(message)[0] || 'conversation');\nlet messageText = text(message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || message.videoMessage?.caption || message.documentMessage?.caption);\nlet contentType = 'text';\nlet base64 = text(data.base64 || message.base64 || message.audioMessage?.base64);\nif (!messageText && messageType.toLowerCase().includes('audio')) { contentType = 'audio'; messageText = '[audio]'; }\nelse if (!messageText) { contentType = messageType.replace(/Message$/i, '').toLowerCase() || 'unknown'; messageText = '[' + contentType + ']'; }\nconst phone = remoteJid.split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst eventSupported = !event || ['messages.upsert', 'messages.update'].includes(event);\n\nconst isFromMe = key.fromMe || data.fromMe;\nconst isBot = isFromMe && messageText.includes('\\u200B');\nconst isAutoReply = isFromMe && (/recebi sua mensagem/i.test(messageText) || /especialista continuara/i.test(messageText) || /mensagem autom[aá]tica/i.test(messageText));\nconst isHuman = isFromMe && !isBot && !isAutoReply;\n\nconst isUnsupportedMsg = ['protocolMessage', 'reactionMessage', 'senderKeyDistributionMessage', 'stickerMessage', 'editedMessage'].includes(messageType) || messageText === '[protocol]' || messageText === '[reaction]';\n\nconst ignoredReason = !eventSupported ? 'event_not_supported' : isUnsupportedMsg ? 'unsupported_message_type' : isBot ? 'outbound_event' : isAutoReply ? 'auto_reply_event' : !remoteJid ? 'missing_remote_jid' : remoteJid.includes('@g.us') || remoteJid === 'status@broadcast' ? 'group_or_status' : !phone ? 'missing_phone' : '';\n\nreturn { json: { shouldProcess: !ignoredReason, ignoredReason, event, isHuman, tenant_slug: 'beautes', instance: text(input.instance || input.instanceName || 'Amanda'), remoteJid, phone, messageId: text(key.id || data.id || remoteJid + ':' + Date.now()), contactName: text(data.pushName || data.senderName || phone), messageText, contentType, base64, raw_payload: input, channel_type: 'whatsapp' } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -32,
-        304
+        240,
+        360
       ],
       "id": "b7ff535d-ace5-4c19-860a-fd99d5e636b4",
       "name": "Normalizar Entrada WhatsApp"
@@ -48,6 +48,15 @@
                 "type": "boolean",
                 "operation": "equals"
               }
+            },
+            {
+              "id": "bot-not-paused",
+              "leftValue": "={{ String($json.bot_paused ?? '') !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -57,8 +66,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        192,
-        304
+        1200,
+        360
       ],
       "id": "5858d7aa-be99-4b09-8f85-f4a37c437d23",
       "name": "Mensagem valida?"
@@ -72,8 +81,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        432,
-        480
+        960,
+        160
       ],
       "id": "1b4ed929-9304-4697-9585-5dd32697a553",
       "name": "Responder Evento Ignorado"
@@ -87,8 +96,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        432,
-        272
+        1440,
+        360
       ],
       "id": "915d556a-8766-426b-877c-67b95e9a9b6a",
       "name": "Consultar Deduplicacao no Redis",
@@ -106,8 +115,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        672,
-        272
+        1680,
+        360
       ],
       "id": "65b437e3-bd07-4ff3-b20c-41536b362302",
       "name": "Verificar Duplicidade"
@@ -138,8 +147,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        912,
-        272
+        1920,
+        360
       ],
       "id": "e792c309-a10c-4b7a-97fe-429b2ec49860",
       "name": "Mensagem nova?"
@@ -153,8 +162,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1152,
-        128
+        2160,
+        160
       ],
       "id": "38746ae3-9271-48d0-b0de-303f08f6e5c4",
       "name": "Responder Duplicidade"
@@ -170,8 +179,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        1152,
-        400
+        2160,
+        360
       ],
       "id": "5d8d8f72-25e4-4a1a-bd75-6f5e00e1af70",
       "name": "Marcar Mensagem no Redis",
@@ -189,8 +198,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1392,
-        400
+        2400,
+        360
       ],
       "id": "554e510b-7919-4f80-bad2-beb3b440810e",
       "name": "Restaurar Contexto apos Redis"
@@ -202,8 +211,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1632,
-        704
+        2640,
+        360
       ],
       "id": "c66d5265-24a3-4f31-844a-d396d89474e6",
       "name": "Preparar mensagem para debounce"
@@ -218,8 +227,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        1872,
-        704
+        2880,
+        360
       ],
       "id": "039f5456-ad04-4e14-a5ad-bb0af01b95dd",
       "name": "Redis enfileirar mensagem",
@@ -234,13 +243,14 @@
       "parameters": {
         "operation": "incr",
         "key": "={{ $json.debounce_lock_key }}",
-        "expire": true
+        "expire": true,
+        "ttl": 60
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        2112,
-        704
+        3120,
+        360
       ],
       "id": "d6c181da-5ce6-48be-b4cf-0f49b8b129f7",
       "name": "Redis adquirir líder",
@@ -258,8 +268,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2352,
-        704
+        3360,
+        360
       ],
       "id": "09469790-6df9-4f8a-8793-8d1b689841ec",
       "name": "Consolidar lock Redis"
@@ -290,8 +300,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2592,
-        704
+        3600,
+        360
       ],
       "id": "2a2ab581-77aa-4393-aa73-d8bf6395ebb8",
       "name": "É o líder do debounce?"
@@ -305,21 +315,22 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        2832,
-        800
+        3840,
+        160
       ],
       "id": "84b79cc1-f027-4c38-b5de-6f5c879882d4",
       "name": "Responder WhatsApp enfileirado"
     },
     {
       "parameters": {
-        "amount": 3
+        "amount": 10,
+        "unit": "seconds"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2832,
-        624
+        3840,
+        360
       ],
       "id": "ea9ba70f-dacb-4972-931a-0f14cf56206e",
       "name": "Aguardar 10s",
@@ -336,8 +347,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        3072,
-        624
+        4080,
+        360
       ],
       "id": "5134ec99-d2ee-4536-bc58-dd46486471b2",
       "name": "Redis ler lote",
@@ -355,8 +366,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3312,
-        624
+        4320,
+        360
       ],
       "id": "67981301-fcef-42dd-ad98-8c4a6e58e344",
       "name": "Juntar mensagens fragmentadas"
@@ -369,8 +380,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        3552,
-        624
+        4560,
+        360
       ],
       "id": "ab8d0efa-fced-419d-b9dd-176d36997099",
       "name": "Redis limpar lote",
@@ -389,8 +400,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        3792,
-        624
+        4800,
+        360
       ],
       "id": "e06f08d9-843d-4dfd-b6b2-faa51f080652",
       "name": "Redis liberar líder",
@@ -408,8 +419,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4032,
-        624
+        5040,
+        360
       ],
       "id": "0d859c62-637f-40a8-86af-78b36d081ba1",
       "name": "Restaurar lote"
@@ -440,8 +451,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1152,
-        320
+        5280,
+        360
       ],
       "id": "472fb6ac-cf14-4b34-a7ac-74ba74825b3f",
       "name": "E audio?"
@@ -458,8 +469,8 @@
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1,
       "position": [
-        1392,
-        224
+        5520,
+        180
       ],
       "id": "2bda706a-98e1-4965-93e9-7cb990831879",
       "name": "Converter Audio para Arquivo"
@@ -479,8 +490,8 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.2,
       "position": [
-        1616,
-        224
+        5760,
+        180
       ],
       "id": "2f612374-8261-4a1b-ae40-e2809e7a2a74",
       "name": "Transcrever Audio (Gemini)",
@@ -498,39 +509,153 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2256,
-        224
+        6000,
+        180
       ],
       "id": "15e34962-e89b-4f3c-a422-30dba3077da9",
       "name": "Aplicar Transcricao"
     },
     {
       "parameters": {
-        "jsCode": "function normalize(value) { return String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''); }\nfunction hasAny(value, values) { return values.some((item) => value.includes(item)); }\n\nconst message = String($json.messageText || '').trim();\nconst value = normalize(message);\nconst coworkingTerms = ['subloc', 'sub-loc', 'coworking', 'consultorio odont', 'odontolog', 'alugar sala', 'aluguel da sala', 'locacao de sala', 'alugar consultorio', 'aluguel de consultorio', 'sala por hora', 'meia diaria'];\nconst isCoworkingInquiry = coworkingTerms.some((term) => value.includes(normalize(term)));\nconst procedureCatalog = [\n  { label: 'Endolaser', aliases: ['endolaser'] },\n  { label: 'Acompanhamento Pós-operatório', aliases: ['acompanhamento pos operatorio', 'pos operatorio', 'drenagem', 'ozonioterapia', 'ultrassom', 'radiofrequencia', 'led', 'laser'] },\n  { label: 'Limpeza de Pele Profunda', aliases: ['limpeza de pele profunda', 'limpeza de pele', 'peeling', 'limpeza facial profunda'] },\n  { label: 'Skin Booster', aliases: ['skin booster', 'skinbooster'] },\n  { label: 'Toxina Botulínica (Botox)', aliases: ['toxina botulinica', 'botox'] },\n  { label: 'Preenchimento Facial e Labial', aliases: ['preenchimento facial e labial', 'preenchimento facial', 'preenchimento labial', 'preenchimento', 'labial'] },\n  { label: 'Estimulador de Colágeno', aliases: ['estimulador de colageno', 'colageno'] },\n  { label: 'Microagulhamento', aliases: ['microagulhamento'] },\n  { label: 'Massagem Modeladora', aliases: ['massagem modeladora', 'modeladora', 'massagem corporal']}\n];\nconst detectedProcedure = procedureCatalog.find((item) => item.aliases.some((alias) => value.includes(normalize(alias))))?.label || '';\nconst finalProcedure = detectedProcedure || ($json.procedimento || $json.service || 'Estética');\nlet service = isCoworkingInquiry ? 'coworking_odontologico' : (detectedProcedure || 'estetica');\nlet stage = 'Atendimento Inicial';\nlet handoff = false;\n\nif (hasAny(value, ['comprovante', 'pix', 'pago', 'pagamento', 'transferencia', 'recibo'])) { \n  stage = 'Validacao de Pagamento'; \n  handoff = true;\n}\nelse if (hasAny(value, ['agendar', 'agenda', 'horario', 'marcar', 'dia', 'queria ir'])) { \n  stage = 'Agendamento'; \n}\nelse if (hasAny(value, ['humano', 'atendente', 'especialista', 'pessoa'])) { \n  stage = 'Atendimento Humano'; \n  handoff = true;\n}\n\nconst promptText = 'Cliente: ' + $json.contactName\n  + '\\nTelefone: ' + $json.phone\n  + '\\nEtapa identificada: ' + stage\n  + '\\nMensagem: ' + message;\n\nreturn { json: { ...$json, service, procedimento: finalProcedure, stage, handoff, isCoworkingInquiry, promptText: promptText + '\\nInteresse em sublocação do coworking odontológico: ' + (isCoworkingInquiry ? 'sim' : 'não') + '\\nProcedimento identificado: ' + (detectedProcedure || 'não identificado') } };"
+        "jsCode": "function normalize(value) { return String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''); }\nfunction hasAny(value, values) { return values.some((item) => value.includes(item)); }\n\nconst message = String($json.messageText || '').trim();\nconst value = normalize(message);\nconst isCoworkingInquiry = /(alug\\w*|locac\\w*|locar\\b|subloc\\w*|sub-loc\\w*|cowork\\w*|sala por hora|meia diaria)/.test(value);\nconst procedureCatalog = [\n  { label: 'Endolaser', aliases: ['endolaser'] },\n  { label: 'Acompanhamento Pós-operatório', aliases: ['acompanhamento pos operatorio', 'pos operatorio', 'ozonioterapia', 'ultrassom', 'radiofrequencia', 'led', 'laser'] },\n  { label: 'Limpeza de Pele Profunda', aliases: ['limpeza de pele profunda', 'limpeza de pele', 'limpeza facial profunda'] },\n  { label: 'Skin Booster', aliases: ['skin booster', 'skinbooster'] },\n  { label: 'Toxina Botulínica (Botox)', aliases: ['toxina botulinica', 'botox'] },\n  { label: 'Preenchimento Labial', aliases: ['preenchimento labial', 'preenchimento de labio', 'preenchimento nos labios', 'preenchimento labio', 'preenchimento dos labios', 'labial', 'labios'] },\n  { label: 'Preenchimento Facial (Full Face)', aliases: ['preenchimento facial', 'full face', 'fullface', 'preenchimento facial (full face)', 'preenchimento de rosto', 'harmonizacao facial', 'harmonizacao'] },\n  { label: 'Bioestimulador de Colágeno', aliases: ['bioestimulador de colageno', 'estimulador de colageno', 'colageno'] },\n  { label: 'Microagulhamento', aliases: ['microagulhamento'] },\n  { label: 'Massagem Modeladora', aliases: ['massagem modeladora', 'modeladora', 'massagem corporal']},\n  { label: 'Drenagem Linfática', aliases: ['drenagem linfatica', 'drenagem linfática', 'drenagem corporal', 'drenagem'] },\n  { label: 'Massagem Relaxante', aliases: ['massagem relaxante', 'relaxante'] },\n  { label: 'Massagem com Pedras Quentes', aliases: ['massagem com pedras quentes', 'pedras quentes', 'massagem pedras quentes'] },\n  { label: 'Peeling Químico', aliases: ['peeling quimico', 'peeling'] },\n  { label: 'Tratamento de Cicatriz', aliases: ['tratamento de cicatriz', 'cicatriz', 'cicatrizes'] },\n  { label: 'Remoção de Verrugas a Laser', aliases: ['remocao de verrugas', 'remocao de verruga a laser', 'remoção e verrugas', 'verruga', 'verrugas'] },\n  { label: 'Remoção de Queloide', aliases: ['remocao de queloide', 'queloide'] },\n  { label: 'Remoção de Xantelasma', aliases: ['remocao de xantelasma', 'remocao de chantelasma', 'chantelasma', 'xantelasma'] },\n  { label: 'Protocolos de Reposição de Vitaminas', aliases: ['protocolos de reposicao de vitaminas', 'reposicao de vitaminas', 'reposicao de vitamina', 'soroterapia', 'vitaminas'] },\n  { label: 'Profilaxia', aliases: ['profilaxia', 'limpeza de dente', 'limpeza dos dentes', 'limpeza dental'] },\n  { label: 'Clareamento', aliases: ['clareamento'] },\n  { label: 'Prótese', aliases: ['protese', 'dentadura', 'roach'] },\n  { label: 'Extração', aliases: ['extracao', 'arrancar dente', 'tirar dente', 'siso'] },\n  { label: 'Restauração', aliases: ['restauracao', 'obturação', 'obturacao', 'restaurar'] },\n  { label: 'Implante', aliases: ['implante'] },\n  { label: 'Lente de contato', aliases: ['lente de contato', 'lente dental', 'facetas'] },\n  { label: 'Lifting facial', aliases: ['lifting facial', 'lifting'] },\n  { label: 'Cervicoplastia', aliases: ['cervicoplastia', 'pescoço'] },\n  { label: 'Blefaroplastia', aliases: ['blefaroplastia', 'palpebra', 'pálpebra', 'blefaroplastias'] },\n  { label: 'Ortomodelação', aliases: ['ortomodelacao'] },\n  { label: 'Ortoplastia', aliases: ['ortoplastia', 'ortopladtia'] },\n  { label: 'Rinomodelação', aliases: ['rinomodelacao', 'nariz'] }\n];\nconst detectedProcedure = procedureCatalog.find((item) => item.aliases.some((alias) => value.includes(normalize(alias))))?.label || '';\nconst finalProcedure = detectedProcedure || ($json.procedimento || $json.service || 'Estética');\nlet service = isCoworkingInquiry ? 'coworking_odontologico' : (detectedProcedure || 'estetica');\nlet stage = 'Atendimento Inicial';\nlet handoff = false;\n\nif (hasAny(value, ['comprovante', 'pix', 'pago', 'pagamento', 'transferencia', 'recibo'])) { \n  stage = 'Validacao de Pagamento'; \n  handoff = true;\n}\nelse if (/\\b(agendar|agenda|horario|marcar|dia|dias|queria ir)\\b/.test(value.replace(/\\b(bom dia|boa tarde|boa noite)\\b/g, ''))) { \n  stage = 'Agendamento'; \n}\nelse if (hasAny(value, ['humano', 'atendente', 'especialista', 'pessoa'])) { \n  stage = 'Atendimento Humano'; \n  handoff = true;\n}\n\nconst promptText = 'Cliente: ' + $json.contactName\n  + '\\nTelefone: ' + $json.phone\n  + '\\nEtapa identificada: ' + stage\n  + '\\nMensagem: ' + message;\n\nreturn { json: { ...$json, service, procedimento: finalProcedure, stage, handoff, isCoworkingInquiry, promptText: promptText + '\\nInteresse em sublocação do coworking odontológico: ' + (isCoworkingInquiry ? 'sim' : 'não') + '\\nProcedimento identificado: ' + (detectedProcedure || 'não identificado') } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2496,
-        320
+        6240,
+        360
       ],
       "id": "8ac0bcaf-865e-46b4-b867-67a5dfb0d792",
       "name": "Preparar Contexto Beautes"
     },
     {
       "parameters": {
+        "operation": "get",
+        "propertyName": "booking_state_raw",
+        "key": "={{ 'beautes:whatsapp:booking:' + $('Preparar Contexto Beautes').item.json.tenant_slug + ':' + $('Preparar Contexto Beautes').item.json.remoteJid }}",
+        "keyType": "string",
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        6720,
+        360
+      ],
+      "id": "54f8bf02-3f20-4cc4-9c7c-82845d1cb343",
+      "name": "Ler Estado Agendamento",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let prev = {};\ntry { prev = $('Preparar Contexto Beautes').item.json; } catch(e) {}\nconst base = { ...prev, ...$json }; const zone = 'America/Sao_Paulo'; const nl = String.fromCharCode(10); const normalize = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''); const message = String(base.messageText || '').trim(); const value = normalize(message); const referenceNow = new Date(base.referenceNow || Date.now()); const dateParts = (date) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)])); const isoDate = (year, month, day) => { const candidate = new Date(Date.UTC(year, month - 1, day)); if (candidate.getUTCFullYear() !== year || candidate.getUTCMonth() !== month - 1 || candidate.getUTCDate() !== day) return ''; return String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0'); }; const parseDate = (text) => { const normalized = normalize(text); const now = dateParts(referenceNow); let match = normalized.match(new RegExp('[0-9]{4}-[0-9]{2}-[0-9]{2}')); if (match) { const [year, month, day] = match[0].split('-').map(Number); return { date: isoDate(year, month, day), mentioned: true }; } match = normalized.match(new RegExp('([0-9]{1,2})[/-]([0-9]{1,2})(?:[/-]([0-9]{4}))?')); if (match) { let year = Number(match[3] || now.year); let date = isoDate(year, Number(match[2]), Number(match[1])); if (date && !match[3] && date < String(now.year).padStart(4, '0') + '-' + String(now.month).padStart(2, '0') + '-' + String(now.day).padStart(2, '0')) date = isoDate(year + 1, Number(match[2]), Number(match[1])); return { date, mentioned: true }; } if (normalized.includes('depois de amanha')) { const next = new Date(Date.UTC(now.year, now.month - 1, now.day + 2)); return { date: isoDate(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()), mentioned: true }; } if (normalized.includes('amanha')) { const next = new Date(Date.UTC(now.year, now.month - 1, now.day + 1)); return { date: isoDate(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()), mentioned: true }; } if (normalized.includes('hoje')) return { date: isoDate(now.year, now.month, now.day), mentioned: true }; const weekdays = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado']; const target = weekdays.findIndex((day) => normalized.includes(day)); if (target >= 0) { const today = new Date(Date.UTC(now.year, now.month - 1, now.day)); let delta = (target - today.getUTCDay() + 7) % 7; if (delta === 0) delta = 7; const next = new Date(Date.UTC(now.year, now.month - 1, now.day + delta)); return { date: isoDate(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()), mentioned: true }; } return { date: '', mentioned: false }; }; const parseTime = (text) => {\n  const normalized = normalize(text);\n  if (/\\bmeia[ -]noite\\b/.test(normalized)) return { time: '00:00', mentioned: true };\n  if (/\\bmeio[ -]dia\\b/.test(normalized)) return { time: '12:00', mentioned: true };\n  const match = normalized.match(/\\b(?:as|para as|pelas|por volta das)\\s*(\\d{1,2})(?::(\\d{2})|h(\\d{2})?)?\\s*(da manha|da tarde|da noite|am\\b|pm\\b|horas?)?/) || normalized.match(/\\b(\\d{1,2})(?::(\\d{2})|h(\\d{2})?)\\s*(da manha|da tarde|da noite|am\\b|pm\\b)?/);\n  if (!match) return { time: '', mentioned: false };\n  let hour = Number(match[1]);\n  const minute = Number(match[2] || match[3] || 0);\n  const period = match[4] || '';\n  if (hour > 23 || minute > 59 || ((period === 'am' || period === 'pm') && (hour < 1 || hour > 12))) return { time: '', mentioned: true };\n  if (/tarde|noite|pm/.test(period) && hour < 12) hour += 12;\n  if (/manha|^am$/.test(period) && hour === 12) hour = 0;\n  return { time: String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0'), mentioned: true };\n}; const toZonedIso = (date, time) => { const [year, month, day] = date.split('-').map(Number); const [hour, minute] = time.split(':').map(Number); const wall = Date.UTC(year, month - 1, day, hour, minute); const probe = dateParts(new Date(wall)); const represented = Date.UTC(probe.year, probe.month - 1, probe.day, probe.hour, probe.minute, probe.second); const offset = Math.round((represented - wall) / 60000); const instant = new Date(wall - offset * 60000); const check = dateParts(instant); if (check.year !== year || check.month !== month || check.day !== day || check.hour !== hour || check.minute !== minute) return ''; const sign = offset <= 0 ? '-' : '+'; const abs = Math.abs(offset); return date + 'T' + time + ':00' + sign + String(Math.floor(abs / 60)).padStart(2, '0') + ':' + String(abs % 60).padStart(2, '0'); }; const catalog = [\n  { label: 'Endolaser', slug: 'endolaser', aliases: ['endolaser'] },\n  { label: 'Acompanhamento Pós-operatório', slug: 'acompanhamento-pos-operatorio', aliases: ['acompanhamento pos operatorio', 'pos operatorio', 'drenagem pos operatoria', 'ozonioterapia pos operatorio'] },\n  { label: 'Limpeza de Pele Profunda', slug: 'limpeza-de-pele-profunda', aliases: ['limpeza de pele profunda', 'limpeza de pele', 'limpeza facial profunda'] },\n  { label: 'Skin Booster', slug: 'skin-booster', aliases: ['skin booster', 'skinbooster'] },\n  { label: 'Toxina Botulínica (Botox)', slug: 'botox', aliases: ['toxina botulinica', 'botox'] },\n  { label: 'Preenchimento Labial', slug: 'preenchimento-labial', aliases: ['preenchimento labial', 'preenchimento de labio', 'preenchimento nos labios', 'preenchimento labio', 'preenchimento dos labios', 'labial', 'labios'] },\n  { label: 'Preenchimento Facial (Full Face)', slug: 'preenchimento-facial-full-face', aliases: ['preenchimento facial', 'full face', 'fullface', 'preenchimento facial (full face)', 'preenchimento de rosto', 'harmonizacao facial', 'harmonizacao'] },\n  { label: 'Bioestimulador de Colágeno', slug: 'bioestimulador-de-colageno', aliases: ['bioestimulador de colageno', 'estimulador de colageno'] },\n  { label: 'Microagulhamento', slug: 'microagulhamento', aliases: ['microagulhamento'] },\n  { label: 'Massagem Modeladora', slug: 'massagem-modeladora', aliases: ['massagem modeladora'] },\n  { label: 'Drenagem Linfática', slug: 'drenagem-linfatica', aliases: ['drenagem linfatica', 'drenagem'] },\n  { label: 'Massagem Relaxante', slug: 'massagem-relaxante', aliases: ['massagem relaxante', 'relaxante'] },\n  { label: 'Massagem com Pedras Quentes', slug: 'massagem-pedras-quentes', aliases: ['massagem com pedras quentes', 'pedras quentes'] },\n  { label: 'Peeling Químico', slug: 'peeling-quimico', aliases: ['peeling quimico', 'peeling'] },\n  { label: 'Tratamento de Cicatriz', slug: 'tratamento-cicatriz', aliases: ['tratamento de cicatriz', 'cicatriz'] },\n  { label: 'Remoção de Verrugas a Laser', slug: 'remocao-verrugas', aliases: ['remocao de verruga', 'verruga', 'tirar verruga'] },\n  { label: 'Remoção de Queloide', slug: 'remocao-queloide', aliases: ['remocao de queloide', 'queloide'] },\n  { label: 'Remoção de Xantelasma', slug: 'remocao-xantelasma', aliases: ['remocao de xantelasma', 'remocao de chantelasma', 'chantelasma', 'xantelasma'] },\n  { label: 'Protocolos de Reposição de Vitaminas', slug: 'reposicao-vitaminas', aliases: ['reposicao de vitaminas', 'vitamina', 'soroterapia'] },\n  { label: 'Consulta', slug: 'consulta', aliases: ['consulta'] },\n  { label: 'Profilaxia', slug: 'profilaxia', aliases: ['profilaxia', 'limpeza de dente', 'limpeza dos dentes', 'limpeza dental'] },\n  { label: 'Clareamento', slug: 'clareamento', aliases: ['clareamento'] },\n  { label: 'Prótese', slug: 'protese', aliases: ['protese', 'dentadura', 'roach'] },\n  { label: 'Extração', slug: 'extracao', aliases: ['extracao', 'arrancar dente', 'tirar dente', 'siso'] },\n  { label: 'Restauração', slug: 'restauracao', aliases: ['restauracao', 'obturação', 'obturacao', 'restaurar'] },\n  { label: 'Implante', slug: 'implante', aliases: ['implante'] },\n  { label: 'Lente de contato', slug: 'lente-de-contato', aliases: ['lente de contato', 'lente dental', 'facetas'] },\n  { label: 'Lifting facial', slug: 'lifting-facial', aliases: ['lifting facial', 'lifting'] },\n  { label: 'Cervicoplastia', slug: 'cervicoplastia', aliases: ['cervicoplastia', 'pescoço'] },\n  { label: 'Blefaroplastia', slug: 'blefaroplastia', aliases: ['blefaroplastia', 'palpebra', 'pálpebra', 'blefaroplastias'] },\n  { label: 'Ortomodelação', slug: 'ortomodelacao', aliases: ['ortomodelacao'] },\n  { label: 'Ortoplastia', slug: 'ortoplastia', aliases: ['ortoplastia', 'ortopladtia'] },\n  { label: 'Rinomodelação', slug: 'rinomodelacao', aliases: ['rinomodelacao', 'nariz'] }\n];\nconst previousRaw = base.booking_state_raw;\nlet state = {};\ntry { state = typeof previousRaw === 'string' && previousRaw ? JSON.parse(previousRaw) : (previousRaw || {}); } catch (_) { state = {}; }\nif (!state || typeof state !== 'object' || Array.isArray(state)) state = {}; if (state.updated_at && (referenceNow.getTime() - Date.parse(state.updated_at) > 86400000)) state = {}; if (state.scheduled_at && Date.parse(state.scheduled_at) <= referenceNow.getTime()) { state.scheduled_at = ''; state.appointment_date = ''; state.appointment_time = ''; state.customer_confirmed = false; state.updated_at = referenceNow.toISOString(); state.awaiting_customer_confirmation = false; state.system_confirmed = false; }\nstate = { service_tag: '', service_label: '', appointment_date: '', appointment_time: '', scheduled_at: '', awaiting_customer_confirmation: false, customer_confirmed: false, ...(state || {}) };\nconst wasCoworking = String(state.service_tag || '').startsWith('serviço:coworking');\nlet matches = catalog.filter((item) => item.aliases.some((alias) => value.includes(normalize(alias))));\nconst isGenericPreenchimento = /\\bpreenchimento\\b/.test(value);\nif (matches.length === 0 && isGenericPreenchimento) {\n  if (state.service_tag === 'serviço:preenchimento-labial' || state.service_tag === 'serviço:preenchimento-facial-full-face') {\n    matches = catalog.filter((c) => 'serviço:' + c.slug === state.service_tag);\n  } else {\n    matches = catalog.filter((c) => c.slug.startsWith('preenchimento-'));\n  }\n}\nconst explicitRental = /(alug\\w*|locac\\w*|locar\\b|subloc\\w*|sub-loc\\w*|cowork\\w*|sala por hora|meia diaria)/.test(value);\nconst isOdontoProfessional = /\\b(dentista\\w*|odontolog\\w*|ortodont\\w*|implantodont\\w*|endodont\\w*)\\b/.test(value);\nconst isProcedureProfessional = /\\b(estetic\\w*|biomedic\\w*|fisioterap\\w*|nutricionist\\w*|psicolog\\w*|medic[oa]s?|procedimento\\w*|massag\\w*|maca|macas|micropigment\\w*|sobrancelha\\w*|designer|podolog\\w*|tatuador\\w*|dermato\\w*|enfermeir\\w*)\\b/.test(value);\nconst isCoworkingInquiry = explicitRental || (wasCoworking && (matches.length === 0 || isOdontoProfessional || isProcedureProfessional));\nlet serviceNeedsClarification = false;\n\nif (isCoworkingInquiry) {\n  if (isOdontoProfessional) state.coworking_specialty = 'odonto';\n  else if (isProcedureProfessional) state.coworking_specialty = 'procedimentos';\n  if (!wasCoworking) {\n    state.appointment_date = '';\n    state.appointment_time = '';\n    state.scheduled_at = '';\n    state.customer_confirmed = false;\n    state.awaiting_customer_confirmation = false;\n    delete state.service_options;\n  }\n  if (state.coworking_specialty === 'odonto') { state.service_tag = 'serviço:coworking-odontologico'; state.service_label = 'Coworking Odontológico'; }\n  else if (state.coworking_specialty === 'procedimentos') { state.service_tag = 'serviço:coworking-procedimentos'; state.service_label = 'Coworking Sala de Procedimentos'; }\n  else { state.service_tag = 'serviço:coworking'; state.service_label = 'Coworking Beautes'; }\n} else if (matches.length > 1) {\n  state.service_tag = '';\n  state.service_label = '';\n  state.appointment_date = '';\n  state.appointment_time = '';\n  state.scheduled_at = '';\n  state.customer_confirmed = false;\n  state.awaiting_customer_confirmation = false;\n  state.service_options = matches.map((item) => item.label);\n  serviceNeedsClarification = true;\n} else if (matches.length === 1) {\n  const match = matches[0];\n  if (state.service_tag !== 'serviço:' + match.slug) {\n    state.appointment_date = '';\n    state.appointment_time = '';\n    state.scheduled_at = '';\n    state.customer_confirmed = false;\n    state.awaiting_customer_confirmation = false;\n  }\n  state.service_tag = 'serviço:' + match.slug;\n  state.service_label = match.label;\n  delete state.service_options;\n} else if (state.service_options?.length) {\n  serviceNeedsClarification = true;\n}\n\nconst parsedDate = parseDate(message);\nconst parsedTime = parseTime(message);\nif (parsedTime.time && (parsedTime.time < '09:00' || parsedTime.time > '18:00')) parsedTime.time = '';\nif (parsedDate.mentioned || parsedTime.mentioned) {\n  const priorSchedule = state.scheduled_at;\n  if (parsedDate.mentioned && parsedDate.date) state.appointment_date = parsedDate.date;\n  if (parsedTime.mentioned && parsedTime.time) state.appointment_time = parsedTime.time;\n  if ((parsedDate.mentioned && !parsedDate.date) || (parsedTime.mentioned && !parsedTime.time)) {\n    state.scheduled_at = '';\n    state.awaiting_customer_confirmation = false;\n    state.customer_confirmed = false;\n    state.schedule_error = 'invalid_date_or_time';\n  } else if (state.appointment_date && state.appointment_time) {\n    const candidate = toZonedIso(state.appointment_date, state.appointment_time);\n    if (!candidate || Date.parse(candidate) <= referenceNow.getTime()) {\n      state.scheduled_at = '';\n      state.awaiting_customer_confirmation = false;\n      state.customer_confirmed = false;\n      state.schedule_error = 'invalid_or_past_time';\n    } else {\n      state.scheduled_at = candidate;\n      state.schedule_error = '';\n      if (candidate !== priorSchedule) {\n        state.awaiting_customer_confirmation = true;\n        state.customer_confirmed = false;\n      }\n    }\n  }\n}\n\nconst affirmative = /^(sim|s|ok|okay|isso|confirmo|pode confirmar|pode marcar)(?:$|[ ,!.])/.test(value);\nif (!parsedDate.mentioned && !parsedTime.mentioned && affirmative && state.awaiting_customer_confirmation && state.service_tag && state.scheduled_at && !serviceNeedsClarification && !state.schedule_error) {\n  state.customer_confirmed = true;\n  state.awaiting_customer_confirmation = false;\n}\nif (!state.service_tag || serviceNeedsClarification || state.schedule_error) state.customer_confirmed = false;\n\nconst dataAgendamento = state.customer_confirmed && state.service_tag && state.scheduled_at ? state.scheduled_at : undefined;\nconst stage = state.scheduled_at && state.service_tag ? (state.customer_confirmed ? 'Validacao de Pagamento/Agendamento' : 'Agendamento') : base.stage;\nconst handoff = state.customer_confirmed ? true : Boolean(base.handoff);\nconst context = state.service_label ? 'Serviço exato: ' + state.service_label + ' (' + state.service_tag + ').' : serviceNeedsClarification ? 'Há mais de um serviço na mensagem. Peça ao cliente para escolher um; não registre nenhum ainda.' : 'Nenhum serviço do catálogo foi identificado. Não use estética como substituto e peça esclarecimento quando necessário.';\nconst scheduleContext = state.scheduled_at ? 'Horário solicitado: ' + state.scheduled_at + '. ' + (state.customer_confirmed ? 'Cliente confirmou esse horário; encaminhe para validação da equipe.' : 'Repita exatamente esse horário e peça confirmação do cliente.') : state.appointment_date && state.service_tag ? 'Data informada: ' + state.appointment_date + '. Ainda falta o horário; pergunte sem sugerir um horário.' : state.appointment_time && state.service_tag ? 'Horário informado: ' + state.appointment_time + '. Ainda falta a data; pergunte sem escolher uma.' : '';\n\n// Coworking: images are sent by the workflow (table first, rules after); each image is sent only once per conversation.\nconst assets = 'https://foxsxchuwguyahimkxfd.supabase.co/storage/v1/object/public/assets-beautes/';\nconst coworkingImages = [];\nif (isCoworkingInquiry) {\n  if (state.coworking_specialty === 'odonto' && !state.coworking_odonto_sent) {\n    coworkingImages.push({ url: assets + 'imagem%20beautes.jpeg', caption: 'Tabela de valores do Consultório Odontológico 👇' });\n    state.coworking_odonto_sent = true;\n  }\n  if (state.coworking_specialty === 'procedimentos' && !state.coworking_procedimento_sent) {\n    coworkingImages.push({ url: assets + 'Beautes_coworking_corrigido.jpeg', caption: 'Tabela de valores da Sala para Procedimentos (Saúde e Estética) 👇' });\n    state.coworking_procedimento_sent = true;\n  }\n  if (!state.coworking_rules_sent) {\n    coworkingImages.push({ url: assets + 'Regras_Coworking.jpeg', caption: 'Regras para reserva do Coworking Beautes 👇' });\n    state.coworking_rules_sent = true;\n  }\n}\nconst coworkingContext = isCoworkingInquiry ? 'Assunto: locação do Beautes Coworking. ' + (state.coworking_specialty ? 'Especialidade já informada: ' + state.coworking_specialty + ' (não pergunte de novo). ' : 'Especialidade ainda não informada. ') + (coworkingImages.length ? 'O sistema está enviando agora ' + coworkingImages.length + ' imagem(ns) (' + coworkingImages.map((img) => img.caption.split(' 👇')[0]).join('; ') + ') imediatamente antes da sua mensagem.' : 'As imagens já foram enviadas antes nesta conversa; não diga que vai enviar de novo.') : '';\nlet savedDay = '';\ntry { savedDay = $('Ler Dia Aberto Agenda').item.json.dia_aberto_raw || ''; } catch (_) {}\nconst diaAbertoRaw = String(savedDay || base.dia_aberto_raw || $json.dia_aberto_raw || 'segunda').trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst validDays = ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];\nconst diaAberto = validDays.includes(diaAbertoRaw) ? diaAbertoRaw : 'segunda';\nconst labelsDias = {\n  segunda: 'segunda-feira',\n  terca: 'terça-feira',\n  quarta: 'quarta-feira',\n  quinta: 'quinta-feira',\n  sexta: 'sexta-feira'\n};\nconst agendaContext = 'DIA DA SEMANA ABERTO PARA AGENDAMENTOS: ' + labelsDias[diaAberto] + ' (das 9h às 18h). Ofereça sempre ' + labelsDias[diaAberto] + ' como a primeira opção para novos agendamentos e consultas avaliativas.';\nstate.updated_at = referenceNow.toISOString();\nconst promptText = String(base.promptText || '') + nl + context + (scheduleContext ? nl + scheduleContext : '') + (coworkingContext ? nl + coworkingContext : '') + nl + agendaContext;\n\nreturn { json: { ...base, service: state.service_tag, service_tag: state.service_tag, procedimento: state.service_label, data_agendamento: dataAgendamento, booking_state: state, service_needs_clarification: serviceNeedsClarification, stage, handoff, isCoworkingInquiry, send_coworking_image: coworkingImages.length > 0, coworking_images: coworkingImages, promptText } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6960,
+        360
+      ],
+      "id": "657a5082-83cc-48f1-84d3-e6728a9f1576",
+      "name": "Unificar Estado Agendamento"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = { ...$json }; const newline = String.fromCharCode(10); base.promptText = String(base.promptText || '').split(newline).filter((line) => !line.trim().startsWith('Procedimento identificado:')).join(newline); return { json: base };"
+      },
+      "id": "cae75d6c-f0b7-422e-aac5-9d1af3655d60",
+      "name": "Sanitizar Contexto Serviço",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7200,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = { ...$json }; const state = { ...(base.booking_state || {}) }; const zone = 'America/Sao_Paulo'; const normalized = String(base.messageText || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''); const now = new Date(base.referenceNow || Date.now()); const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now).filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)])); const weekdays = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado']; const target = weekdays.findIndex((day) => normalized.includes(day)); const today = String(parts.year).padStart(4, '0') + '-' + String(parts.month).padStart(2, '0') + '-' + String(parts.day).padStart(2, '0'); const nextWeekDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + 7)); const nextWeek = nextWeekDate.getUTCFullYear() + '-' + String(nextWeekDate.getUTCMonth() + 1).padStart(2, '0') + '-' + String(nextWeekDate.getUTCDate()).padStart(2, '0'); if (target >= 0 && target === new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay() && state.appointment_date === nextWeek && state.appointment_time && state.scheduled_at) { const offset = state.scheduled_at.match(new RegExp('([-+][0-9]{2}:[0-9]{2}|Z)$'))?.[1] || '-03:00'; const todaySchedule = today + 'T' + state.appointment_time + ':00' + offset; if (Date.parse(todaySchedule) > now.getTime()) { state.appointment_date = today; state.scheduled_at = todaySchedule; state.awaiting_customer_confirmation = true; state.customer_confirmed = false; state.system_confirmed = false; state.schedule_error = ''; } else { state.scheduled_at = ''; state.awaiting_customer_confirmation = false; state.customer_confirmed = false; state.schedule_error = 'past_time_same_day'; } } base.booking_state = state; base.data_agendamento = undefined; return { json: base };"
+      },
+      "id": "5ba7c6b8-99e8-4866-80dc-80693a0b01d2",
+      "name": "Resolver Hoje ou Próxima Semana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7440,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = { ...$json }; const state = { ...(base.booking_state || {}) }; if (state.system_confirmed) { if (state.customer_confirmed && !state.confirmed_scheduled_at) state.confirmed_scheduled_at = state.scheduled_at; else if (!state.customer_confirmed || state.scheduled_at !== state.confirmed_scheduled_at) { state.system_confirmed = false; state.confirmed_scheduled_at = ''; } } base.booking_state = state; return { json: base };"
+      },
+      "id": "aa63bd4a-87f5-41a2-b09b-d9f89c65b4b2",
+      "name": "Reconciliar Estado Confirmado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7680,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = { ...$json }; const state = { ...(base.booking_state || {}) }; const zone = 'America/Sao_Paulo'; const nl = String.fromCharCode(10); const now = new Date(base.referenceNow || Date.now()); const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hourCycle: 'h23' }).formatToParts(now).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value])); const normalized = String(base.messageText || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''); const dateWithoutYear = normalized.match(new RegExp('([0-9]{1,2})[/-]([0-9]{1,2})')); const explicitYear = normalized.match(new RegExp('20[0-9]{2}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{4}')); if (dateWithoutYear && !explicitYear && state.scheduled_at) { const thisYearDate = String(parts.year) + '-' + String(Number(dateWithoutYear[2])).padStart(2, '0') + '-' + String(Number(dateWithoutYear[1])).padStart(2, '0'); const today = String(parts.year) + '-' + String(parts.month) + '-' + String(parts.day); const check = new Date(Date.UTC(Number(parts.year), Number(dateWithoutYear[2]) - 1, Number(dateWithoutYear[1]))); const valid = check.getUTCFullYear() === Number(parts.year) && check.getUTCMonth() === Number(dateWithoutYear[2]) - 1 && check.getUTCDate() === Number(dateWithoutYear[1]); if (valid && thisYearDate < today) { state.schedule_error = 'year_missing'; state.scheduled_at = ''; state.awaiting_customer_confirmation = false; state.customer_confirmed = false; state.system_confirmed = false; base.data_agendamento = undefined; } } if (state.system_confirmed && state.scheduled_at !== state.confirmed_scheduled_at) { state.system_confirmed = false; state.confirmed_scheduled_at = ''; } if (state.system_confirmed && state.scheduled_at) { base.data_agendamento = state.scheduled_at; base.stage = 'Agendamento Confirmado'; base.handoff = false; } else if (state.customer_confirmed && state.scheduled_at && state.service_tag && !state.schedule_error) { base.data_agendamento = state.scheduled_at; base.stage = 'Validacao de Pagamento/Agendamento'; base.handoff = true; } else { base.data_agendamento = undefined; if (state.scheduled_at && state.service_tag && !state.schedule_error) base.stage = 'Agendamento'; } state.confirmed_scheduled_at = state.system_confirmed ? state.scheduled_at : (state.confirmed_scheduled_at || ''); base.booking_state = state; base.service = state.service_tag || ''; base.service_tag = state.service_tag || ''; base.procedimento = state.service_label || ''; base.promptText = String(base.promptText || '') + nl + (state.schedule_error === 'year_missing' ? 'A data indicada já passou neste ano e não informou o ano. Peça o ano correto; não transfira para o ano seguinte.' : state.system_confirmed ? 'Este agendamento já foi confirmado pela equipe. Não o reabra nem altere.' : ''); return { json: base };"
+      },
+      "id": "fe170d65-9f49-46fd-902a-d45d0f017143",
+      "name": "Finalizar Estado Agendamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7920,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'beautes:whatsapp:booking:' + $json.tenant_slug + ':' + $json.remoteJid }}",
+        "value": "={{ JSON.stringify((() => { const state = { ...$json.booking_state }; for (const image of ($json.coworking_images || [])) { if (image.url.includes('Regras_Coworking')) delete state.coworking_rules_sent; else if (image.url.includes('imagem%20beautes')) delete state.coworking_odonto_sent; else if (image.url.includes('Beautes_coworking_corrigido')) delete state.coworking_procedimento_sent; } return state; })()) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        8160,
+        360
+      ],
+      "id": "0be7de77-b40c-42fe-9913-5476252a8d34",
+      "name": "Salvar Estado Agendamento",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "promptType": "define",
         "text": "={{ $json.promptText }}",
         "options": {
-          "systemMessage": "={{'\\nData e hora atual no Brasil: ' + $now.setZone('America/Sao_Paulo').setLocale('pt-BR').toFormat(\"cccc, dd/MM/yyyy 'às' HH:mm\") }}\nVocê é Bia, assistente virtual da Clínica Estética Beleza Beautes.\n\nFale em português do Brasil, com tom acolhedor, objetivo e profissional.\nUse emojis com moderação. Responda normalmente em até 4 linhas.\n\nSERVIÇOS:\n- Acompanhamento Pós-operatório\n- Limpeza de Pele Profunda\n- Skin Booster\n- Toxina Botulínica (Botox)\n- Preenchimento Facial e Labial\n- Estimulador de Colágeno\n- Microagulhamento\n- Massagem Modeladora\n- Endolaser\n\nREGRAS GERAIS:\n1. Quando a cliente perguntar sobre um serviço, explique brevemente o benefício e pergunte se ela gostaria de agendar.\n   ► SOBRE O PÓS-OPERATÓRIO: Explique que é um acompanhamento individualizado para auxiliar na recuperação e reduzir o inchaço. Pode incluir Drenagem, Ultrassom, Radiofrequência, LED/laser e Ozonioterapia, definidos conforme avaliação do paciente.\n2. Nunca mencione preço, PIX, pagamento, comprovante, sinal, taxa ou valor de avaliação enquanto a cliente estiver apenas conhecendo um serviço, tirando dúvidas ou demonstrando interesse.\n3. Se a cliente disser apenas “quero marcar”, “quero agendar” ou algo parecido, pergunte qual dia e horário ela prefere. Não fale de valores nessa etapa.\n4. Se a cliente informar somente o dia, mas não o horário, peça o horário. Não fale de valores até existir dia e horário específicos.\n5. Perguntas de calendário têm prioridade. A data atual está informada na mensagem. Se ela perguntar “amanhã é qual dia?”, responda diretamente usando a data.\n\n\nDIRETRIZES DE CONDUÇÃO DA CONVERSA:\n- Responda primeiro ao que a cliente perguntou. Depois, faça no máximo uma pergunta, apenas a mais útil para avançar. Não faça várias perguntas na mesma mensagem nem transforme o atendimento em interrogatório.\n- Entenda o objetivo e o procedimento antes de recomendar. Use somente serviços e informações deste prompt e pergunte apenas os dados ainda não informados, com naturalidade.\n- Se a cliente estiver pesquisando ou tirando dúvidas, explique o serviço e ajude sem pressionar. Não envie catálogo ou tabela de preços sem necessidade.\n- Se perguntarem preço, siga rigorosamente as condições e restrições de preço das regras por serviço. Não use valores do coworking odontológico e não invente preço, desconto ou parcelamento.\n- Se a cliente demonstrar intenção concreta de agendar, pare de oferecer outras opções e avance com os dados que faltam. Não pergunte novamente o que ela já informou.\n- Pré-reserva não significa disponibilidade confirmada. Nunca afirme que o horário está confirmado ou disponível; informe somente a pré-reserva e use a mensagem final obrigatória para explicar que um especialista verificará a agenda.\n- Se a cliente disser que achou caro ou que ainda está pesquisando, acolha sem discutir, pressionar ou oferecer desconto. Faça somente uma pergunta relevante se ela ajudar a orientar o atendimento.\n- Se perguntarem algo que não está cadastrado neste prompt, não invente. Responda: “Essa informação eu prefiro confirmar para não te passar algo incorreto. Aguarde um dos nossos especialistas verificar, e em breve retornaremos por aqui.”\n\n\nATENDIMENTO DO BEAUTES COWORKING ODONTOLÓGICO:\nA Beautes também oferece sublocação de consultório odontológico para profissionais da odontologia. Quando houver pergunta sobre sublocação, locação de sala ou coworking odontológico, nunca diga que a Beautes não oferece esse serviço. Explique a opção mais adequada e conduza a conversa para verificar a necessidade do profissional.\n\nOPÇÕES E PREÇOS DO COWORKING:\n- Por hora: R$ 70,00 por hora, com reserva mínima de 3 horas (mínimo de R$ 210,00).\n- Meia diária: 5 horas por R$ 220,00.\n- Diária: 10 horas por R$ 350,00.\n- Plano mensal de 4 meias diárias: 4 períodos de 5 horas (20 horas no mês) por R$ 1.120,00.\n- Plano mensal de 4 diárias: 4 períodos de 10 horas (40 horas no mês) por R$ 1.500,00.\n- Localização informada para o coworking: Edifício Medical Center, Sala 808. Não invente rua, número ou outros detalhes do endereço do coworking.\n\nAo recomendar, entenda primeiro se o uso é pontual ou recorrente e quantas horas precisa. Faça uma pergunta por vez. Para 4 horas avulsas, compare com a meia diária de 5 horas por R$ 220,00. Para 6 a 10 horas, compare com a diária de 10 horas por R$ 350,00. Para uso recorrente, apresente os planos mensais sem pressionar. Use somente os preços acima e não invente descontos ou disponibilidade.\n\nQuando a cliente perguntar sobre sublocação ou demonstrar interesse no consultório, não escreva o link separadamente na resposta: o fluxo enviará o Reel como legenda da imagem da tabela.\n\nREGRAS POR SERVIÇO:\n\n6. Para Acompanhamento Pós-operatório, Skin Booster, Botox, Preenchimento Facial e Labial, Estimulador de Colágeno, Microagulhamento e Massagem Modeladora:\n- Peça dia e horário;\n- Após receber AMBOS (dia e horário), informe que o agendamento foi pré-reservado.\n- Nunca fale de preço, PIX, pagamento ou comprovante para estes procedimentos.\n\n7. Para LIMPEZA DE PELE PROFUNDA:\n- Custa R$100;\n- Somente depois que a cliente informar dia e horário, diga que o horário foi pré-reservado;\n- Informe que é necessário pagar 50% para confirmar a reserva (R$50);\n- Envie os dados de PIX: Chave CNPJ 54747955000136 | Banco Santander | Nome: BeautesCoworking.\n\n8. Para ENDOLASER:\n- Somente depois que a cliente informar dia e horário, diga que o horário foi pré-reservado;\n- Informe que a avaliação custa R$50;\n- Envie os dados de PIX: Chave CNPJ 54747955000136 | Banco Santander | Nome: BeautesCoworking.\n\n9. MENSAGEM FINAL DE CONFIRMAÇÃO:\n- Sempre que finalizar o agendamento (após pré-reserva sem PIX, ou após a cliente mandar comprovante de PIX), encerre com EXATAMENTE este texto:\n“Ok, tudo anotado! 💖 Aguarde um dos nossos especialistas verificar o seu horário na nossa agenda. Em breve retornaremos o contato por aqui para finalizar seu atendimento!”",
+          "systemMessage": "={{ \"Você é Bia, assistente virtual do Beautes Coworking. Responda ao assunto atual. Uma saudação sozinha deve receber uma saudação breve e a pergunta Como posso ajudar? Nunca ofereça locação, vídeo ou tabela sem interesse explícito em aluguel. O nome Beautes Coworking é a identidade da empresa, não significa que toda pessoa deseja alugar uma sala.\\n\" + \"Data e hora atual no Brasil: \" + $now.setZone(\"America/Sao_Paulo\").setLocale(\"pt-BR\").toFormat(\"cccc, dd/MM/yyyy HH:mm\") + \"\\n\" + ($(\"Finalizar Estado Agendamento\").item.json.isCoworkingInquiry ? \"=========================================\\nPARTE 3: BEAUTES COWORKING (LOCAÇÃO DE CONSULTÓRIOS E SALAS)\\n=========================================\\n\\nIDENTIDADE PARA O COWORKING:\\nSeu papel também é atuar como assistente virtual comercial do Beautes Coworking, atendendo dentistas, médicos, biomédicos e profissionais da saúde e estética interessados em alugar nossos espaços. Entenda a necessidade de cada profissional, apresente as opções de forma clara e conduza para a reserva.\\n\\n📍 LOCALIZAÇÃO: Edifício Medical Center, 286, Sala 808 - Rua 13 de Maio, Campos dos Goytacazes - RJ.\\nHorário de funcionamento: De 9h às 18h.\\n\\nREGRAS GERAIS DE RESERVA (PARA AMBAS AS SALAS):\\n- RESERVA MÍNIMA: A reserva mínima é de 3 horas em qualquer modalidade. Nunca faça reserva de 1h ou 2h avulsa.\\n- SINAL DE 50% PARA GARANTIR: Para garantir a data e horário na agenda, a reserva é confirmada mediante o pagamento de 50% de sinal via PIX.\\n- CHAVE PIX: CNPJ 54747955000136 | Banco Sicoob | Nome: BeautesCoworking.\\n- CANCELAMENTO / ALTERAÇÃO: Mínimo de 24 horas de antecedência. Cancelamentos fora do prazo ou não comparecimento podem resultar na perda do sinal.\\n- TOLERÂNCIA: 15 minutos de tolerância para atrasos.\\n\\nTEMOS 2 ESPAÇOS E 2 TABELAS DE VALORES:\\n\\n-----------------------------------------\\nMODALIDADE 1: CONSULTÓRIO ODONTOLÓGICO COMPLETO\\n-----------------------------------------\\n(Espaço próprio e completo para dentistas)\\n- RESERVA POR HORA: R$ 70,00 por hora (Reserva mínima de 3 horas = R$ 210,00).\\n- PACOTES:\\n  • Meia diária (5 horas): R$ 220,00\\n  • Diária (10 horas): R$ 350,00\\n- PLANOS MENSAIS RECORRENTES:\\n  • 4 meias diárias (4 períodos de 5 horas = 20h/mês): R$ 1.120,00\\n  • 4 diárias (4 períodos de 10 horas = 40h/mês): R$ 1.500,00\\n- COMO RECOMENDAR (ODONTO):\\n  • 3 horas: R$ 210,00 (mínimo).\\n  • 4 horas avulsas seriam R$ 280. Mostre que a Meia Diária de 5h por R$ 220,00 é muito mais vantajosa!\\n  • Entre 6h e 10h: Mostre que a Diária de 10h por R$ 350,00 é a melhor opção.\\n  • Para uso recorrente semanal/mensal: Apresente os planos mensais (R$ 1.120 ou R$ 1.500).\\n\\n-----------------------------------------\\nMODALIDADE 2: SALA PARA PROCEDIMENTOS (SAÚDE E ESTÉTICA)\\n-----------------------------------------\\n(Espaço com salas climatizadas, macas automatizadas e ambiente sofisticado)\\n- RESERVA POR HORA: R$ 55,00 por hora (Reserva mínima de 3 horas = R$ 165,00).\\n- PACOTE:\\n  • Pacote 10 horas: R$ 500,00 (sai a R$ 50,00 a hora).\\n- PLANO MENSAL:\\n  • Plano Mensal: R$ 1.800,00\\n- COMO RECOMENDAR (PROCEDIMENTOS):\\n  • Mínimo de 3 horas por R$ 165,00 (R$ 55/h).\\n  • Se o profissional precisar de cerca de 10 horas, recomende o pacote de 10 horas por R$ 500,00 para economizar.\\n  • Para uso intensivo mensal, recomende o Plano Mensal de R$ 1.800,00.\\n\\nFLUXO DE ATENDIMENTO E QUALIFICAÇÃO DO LEAD (COWORKING):\\n0. IMAGENS AUTOMÁTICAS: o sistema envia sozinho, imediatamente antes da sua mensagem, as imagens das regras e/ou da tabela de valores. O contexto da conversa informa quando isso aconteceu. Nunca cole links dessas imagens e nunca diga que vai enviar uma imagem que já foi enviada.\\n   Exceção de tamanho: nas respostas de coworking você pode passar de 4 linhas quando precisar apresentar valores.\\n\\n1. NO PRIMEIRO CONTATO (quando a pessoa pergunta genericamente sobre aluguel de sala/coworking, sem dizer a especialidade):\\nSua resposta deve ser acolhedora e incluir o vídeo do espaço:\\n\\\"Olá! Vou encaminhar um vídeo do nosso espaço para você conhecer melhor! ✨\\nConheça nosso espaço 👇\\nVídeo: https://www.instagram.com/reel/DbdUm2DxAGu/?stkn=MWd5NTZ3NGV2bWJ5\\nTemos duas opções de consultórios:\\n1️⃣ Consultório Odontológico completo\\n2️⃣ Sala para Procedimentos (Saúde e Estética)\\nVocê precisaria para qual especialidade e de quantas horas?\\\"\\n\\n2. QUANDO O CLIENTE INFORMA A ESPECIALIDADE (inclusive já na primeira mensagem — nesse caso envie o vídeo, não repita a pergunta de especialidade e pergunte só as horas):\\n- Apresente os valores e pacotes da sala escolhida (lembrando sempre da reserva mínima de 3 horas).\\n- Se já souber quantas horas precisa, faça o cálculo matemático mais vantajoso para o cliente.\\n\\n3. QUANDO O CLIENTE DESEJA RESERVAR UM HORÁRIO:\\n- Peça o nome, data, horário de início e término (mínimo 3 horas, entre 9h e 18h).\\n- Informe o valor total do período e o valor do sinal de 50% para reserva.\\n- Envie a Chave PIX CNPJ 54747955000136 (Sicoob - BeautesCoworking) e peça o comprovante para garantir o horário na agenda.\\n- Lembre do cancelamento com no mínimo 24h de antecedência.\\n\\n\" : \"Você é Bia, assistente virtual do Beautes Coworking.\\n\\n📍 NOSSO ENDEREÇO: Edifício Medical Center, Rua Treze de Maio, 286, Sala 808 - Campos dos Goytacazes - RJ. (Informe o endereço sempre que o cliente perguntar onde o coworking fica).\\n\\n⏰ HORÁRIO DE FUNCIONAMENTO NO GERAL: De 9h às 18h.\\n- O horário de funcionamento no geral é das 9h às 18h (para recepção, atendimento comercial, procedimentos estéticos, locação de salas e coworking).\\n- Sempre que alguém perguntar pelo horário de funcionamento, informe claramente: \\\"Nosso horário de funcionamento é das 9h às 18h.\\\"\\n- Todos os agendamentos, reservas e atendimentos devem ocorrer estritamente dentro deste horário (das 9h às 18h). Se o cliente sugerir um horário fora desse período (antes das 9h ou após as 18h), informe gentilmente que o horário de funcionamento no geral é de 9h às 18h e peça para escolher um horário dentro dessa faixa.\\n\\nFale em português do Brasil, com tom acolhedor, objetivo, comercial e profissional.\\nUse emojis com moderação. Responda normalmente em até 4 linhas.\\nNão diga que é um robô, a menos que o cliente pergunte diretamente.\\n\\n=========================================\\nPARTE 1: CLÍNICA DE BELEZA E ESTÉTICA\\n=========================================\\n\\nSERVIÇOS DE ESTÉTICA:\\n- Acompanhamento Pós-operatório\\n- Limpeza de Pele Profunda\\n- Skin Booster\\n- Toxina Botulínica (Botox)\\n- Preenchimento Labial\\n- Preenchimento Facial (Full Face)\\n- Bioestimulador de Colágeno\\n- Microagulhamento\\n- Massagem Modeladora\\n- Endolaser\\n- Drenagem Linfática\\n- Massagem Relaxante\\n- Massagem com Pedras Quentes\\n- Peeling Químico\\n- Tratamento de Cicatriz\\n- Remoção de Verrugas a Laser\\n- Remoção de Queloide\\n- Remoção de Xantelasma\\n- Protocolos de Reposição de Vitaminas\\n\\nREGRAS GERAIS DE ESTÉTICA:\\n1. Quando a cliente perguntar sobre um serviço, explique brevemente o benefício e pergunte se ela gostaria de agendar.\\n   ► SOBRE O PÓS-OPERATÓRIO: Explique que é um acompanhamento individualizado para auxiliar na recuperação e reduzir o inchaço. Pode incluir Drenagem, Ultrassom, Radiofrequência, LED/laser e Ozonioterapia, definidos conforme avaliação do paciente.\\n   ► PREENCHIMENTO LABIAL É DIFERENTE DE PREENCHIMENTO FACIAL:\\n     - Preenchimento Labial é focado exclusivamente nos lábios.\\n     - Preenchimento Facial o nome se dá Full Face (harmonização/preenchimento global do rosto).\\n     - São procedimentos distintos! Se a cliente disser apenas “preenchimento”, pergunte se ela tem interesse no Preenchimento Labial ou no Facial (Full Face).\\n\\n2. QUANDO A CLIENTE PERGUNTAR VALORES / PREÇO (MUITO IMPORTANTE):\\n   - NUNCA fuja e NUNCA ignore a pergunta de valor da cliente! Responda SEMPRE diretamente à dúvida de preço:\\n   - Para PREENCHIMENTO LABIAL: Explique claramente: \\\"O valor só passamos mediante uma consulta avaliativa para avaliar, ver a sua necessidade e passar a quantidade de ML proporcional ao seu lábio.\\\"\\n   - Para PREENCHIMENTO FACIAL (FULL FACE): Explique claramente: \\\"O valor só passamos mediante uma consulta avaliativa para avaliar a face como um todo (Full Face) e ver as necessidades individuais.\\\"\\n   - Para os demais procedimentos da estética sem preço tabelado: Explique que o valor é informado em consulta avaliativa após a análise individualizada de cada paciente.\\n   - HORÁRIO DAS AVALIAÇÕES: A agenda de atendimentos funciona com preenchimento sequencial de dias para concentrar os atendimentos (iniciando pela segunda-feira, das 9h às 18h).\\n   - Ao explicar o motivo de ser em consulta avaliativa, convide a cliente a agendar a avaliação para a segunda-feira (entre 9h e 18h). Se a agenda de segunda estiver preenchida, ofereça terça-feira, e assim sucessivamente.\\n\\n3. Se a cliente estiver apenas conhecendo um serviço ou demonstrando interesse sem perguntar valores, foque em explicar os benefícios e perguntar se ela deseja agendar uma consulta avaliativa.\\n4. Se a cliente disser apenas “quero marcar”, “quero agendar” ou algo parecido, pergunte qual dia e horário ela prefere (lembrando que avaliações são às segundas-feiras, 9h às 18h).\\n5. Se a cliente informar somente o dia, mas não o horário, peça o horário (dentro de 9h às 18h).\\n6. Perguntas de calendário têm prioridade. A data atual está informada na mensagem. Se ela perguntar “amanhã é qual dia?”, responda diretamente usando a data.\\n\\nREGRAS POR SERVIÇO (ESTÉTICA):\\n\\n7. Para PREENCHIMENTO LABIAL:\\n- Focado nos lábios (volume, contorno e hidratação).\\n- Se perguntar valor: explique que valor só é passado mediante uma consulta avaliativa para avaliar, ver a sua necessidade e passar a quantidade de ML proporcional ao seu lábio.\\n- Avaliações acontecem no DIA ABERTO informado pelo sistema, das 9h às 18h.\\n- Peça o horário de preferência no DIA ABERTO informado pelo sistema para agendar a avaliação.\\n- CUIDADOS E DÚVIDAS PÓS-PREENCHIMENTO LABIAL:\\n  • Se a paciente perguntar sobre cuidados, inchaço ou pós-procedimento, responda com base nas recomendações oficiais da equipe responsável do Beautes Coworking:\\n  • Dexametasona 4 mg: tomar de 12h em 12h por 3 dias (somente com prescrição individualizada).\\n  • Compressa gelada nas primeiras 48h (10 a 15 min a cada 2h) para reduzir inchaço e desconforto.\\n  • Hidratação constante com Bepantol Derma Labial ou hidratante labial.\\n  • Evitar calor excessivo (sol, sauna, banho quente) por 7 dias.\\n  • Evitar atividade física intensa, bebidas alcoólicas e beijar nas primeiras 48 horas.\\n  • Não massagear nem pressionar os lábios.\\n  • Evitar maquiagem labial por 24h e beber bastante água.\\n  • Evolução: inchaço mais evidente do 1º ao 3º dia; redução gradual do 4º ao 7º dia; estável em 15 dias; resultado final entre 30 e 60 dias.\\n  • Sinais de alerta: se houver dor intensa progressiva, inchaço aumentando após o 3º dia, arroxeamento, palidez ou bolhas/feridas, orientar a procurar a clínica imediatamente.\\n\\n8. Para PREENCHIMENTO FACIAL (FULL FACE):\\n- Preenchimento facial completo / harmonização facial (Full Face).\\n- Se perguntar valor: explique que valor só é passado mediante consulta avaliativa para avaliar a face globalmente e planejar a quantidade necessária.\\n- Avaliações acontecem no DIA ABERTO informado pelo sistema, das 9h às 18h.\\n- Peça o horário de preferência no DIA ABERTO informado pelo sistema para agendar a avaliação.\\n\\n9. Para QUALQUER OUTRO SERVIÇO DE ESTÉTICA sem preço tabelado:\\n- Se perguntar valor: explique que é definido em consulta avaliativa (segundas-feiras, 9h às 18h).\\n- Peça dia e horário;\\n- Após receber AMBOS (dia e horário), informe que o agendamento foi pré-reservado.\\n\\n10. Para LIMPEZA DE PELE PROFUNDA:\\n- Custa R$100;\\n- Somente depois que a cliente informar dia e horário, diga que o horário foi pré-reservado;\\n- Informe que é necessário pagar 50% para confirmar a reserva (R$50);\\n- Envie os dados de PIX: Chave CNPJ 54747955000136 | Banco Sicoob | Nome: BeautesCoworking.\\n- CUIDADOS E DÚVIDAS PÓS-ENDOLASER PRO:\\n  • Se a paciente perguntar sobre cuidados ou pós-procedimento de endolaser, responda com segurança com base nas recomendações oficiais da equipe responsável do Beautes Coworking:\\n  • Uso da cinta compressiva: usar diariamente por 45 dias, retirando apenas para banho, atividade física e necessidades especiais.\\n  • Compressa gelada nos primeiros 7 dias: 2 vezes ao dia por 15 a 20 minutos (usar toalha fina para proteger a pele).\\n  • Drenagens linfáticas pós-endolaser: iniciar no 10º dia de pós-procedimento para diminuir inchaço e prevenir fibroses.\\n  • Hidratação e alimentação: beber 2 a 3 litros de água por dia; alimentação equilibrada rica em proteínas/fibras e evitar excesso de sódio.\\n  • Atividade física: caminhadas leves liberadas após 48 horas; exercícios intensos/alto impacto evitar nas primeiras 3 semanas.\\n  • Restrições: sem bebidas alcoólicas por 15 dias; não fumar; sem exposição solar direta nas áreas tratadas por 30 dias (usar protetor solar); sem calor excessivo (sauna, banho quente, manta térmica) por 30 dias; não massagear a área sem orientação profissional; evitar viagens longas nas primeiras 2 semanas.\\n  • Evolução: inchaço, sensibilidade e pequenos hematomas normais de 1 a 7 dias; resultado final entre 3 e 6 meses.\\n  • Sinais de alerta: se houver dor intensa progressiva, inchaço que aumenta após o 3º dia, vermelhidão/calor local/febre, assimetria importante ou endurecimento excessivo (fibrose), orientar a procurar a clínica imediatamente.\\n\\n11. Para ENDOLASER:\\n- Somente depois que a cliente informar dia e horário, diga que o horário foi pré-reservado;\\n- Informe que a avaliação custa R$50;\\n- Envie os dados de PIX: Chave CNPJ 54747955000136 | Banco Sicoob | Nome: BeautesCoworking.\\n- ASSIM QUE A PACIENTE FECHAR A DATA DO PROCEDIMENTO DE ENDOLASER PRO (OU PERGUNTAR O QUE TRAZER):\\n  • Encaminhe com carinho a lista do que ela terá que trazer no dia do procedimento para ser o mais seguro, confortável e tranquilo:\\n    1. Toalha de banho limpa (não precisa ser nova)\\n    2. 2 Gatorades (sabores de sua preferência)\\n    3. Biscoitinho de sal para o pós-procedimento\\n    4. 1 pacote de absorvente geriátrico\\n    5. Cinta compressiva para o pós-procedimento\\n    6. 1 rolo de fita crepe\\n    7. Calcinha confortável\\n    8. Vestidinho folgado para ir embora (para maior conforto)\\n  • Dica extra: Prefira roupas fáceis de vestir e confortáveis. Evite calças justas no dia do procedimento.\\n\\n12. Para TOXINA BOTULÍNICA (BOTOX):\\n- Informe sobre o nosso BOTOX DAY com condições especiais: De R$ 1.200 por R$ 900,00 à vista, ou parcelado em até 10x de R$ 115,00 no cartão.\\n- Explique que está incluído: Testa, glabela e ao redor dos olhos.\\n- Após passar essa informação, pergunte se a pessoa tem interesse em reservar um horário.\\n- CUIDADOS E DÚVIDAS PÓS-TOXINA BOTULÍNICA (BOTOX):\\n  • Se a paciente perguntar sobre cuidados ou pós-procedimento de botox, responda com base nas recomendações oficiais da equipe responsável do Beautes Coworking:\\n  • Primeiras 4 horas: não deitar e não abaixar a cabeça; não massagear, não coçar e não pressionar a área; evitar chapéus ou bonés que pressionem; não fazer atividade física intensa; evitar bebidas alcoólicas e calor (sol, sauna, banho quente).\\n  • Primeiras 24 horas: evitar maquiagem na área; não usar ácidos, esfoliantes ou peelings; evitar viagens de avião e não fazer massagem/drenagem facial ou outros procedimentos.\\n  • Durante 7 dias: evitar atividades físicas intensas; evitar exposição prolongada ao sol, sauna e hidromassagem; não dormir de bruços com o rosto no travesseiro.\\n  • Evolução do resultado: melhoras iniciais de 1 a 3 dias; resultado evidente do 4º ao 14º dia; resultado final em até 30 dias; duração média de 3 a 6 meses.\\n  • Sinais de alerta: se houver dor intensa persistente, inchaço exagerado, assimetria importante, fraqueza muscular/queda de pálpebra ou reação alérgica, orientar a procurar a clínica imediatamente.\\n\\n\\n\\n=========================================\\nPARTE 2: SERVIÇOS ODONTOLÓGICOS E CIRÚRGICOS\\n=========================================\\n\\nSERVIÇOS:\\n- Profilaxia\\n- Clareamento\\n- Prótese\\n- Extração\\n- Restauração\\n- Implante\\n- Lente de contato\\n- Lifting facial\\n- Cervicoplastia\\n- Blefaroplastia\\n- Ortomodelação\\n- Ortoplastia\\n- Rinomodelação\\n\\nREGRA PARA ODONTOLOGIA E CIRURGIA (CONSULTA AVALIATIVA):\\n- Toda parte odontológica é cirúrgica e precisa passar por uma **consulta avaliativa**.\\n- As consultas avaliativas e cirúrgicas seguem a regra de **preenchimento sequencial de dias** (iniciando pela segunda-feira, das 9h às 18h).\\n- O objetivo dessa consulta avaliativa é avaliar o paciente, ver a indicação, explicar a técnica e passar os valores.\\n- NUNCA passe preço para esses procedimentos.\\n- Quando o cliente procurar por esses serviços, explique que é necessária uma consulta avaliativa, informe que os atendimentos iniciam na segunda-feira (entre 9h e 18h) e pergunte qual horário ele prefere na segunda-feira.\\n- SISTEMA DE PREENCHIMENTO SEQUENCIAL:\\n  • Primeiro preenchemos todos os horários da segunda-feira.\\n  • Somente quando a agenda de segunda-feira for totalmente fechada/preenchida, abrimos os horários para a terça-feira, e assim sucessivamente.\\n  • Se o cliente disser que não pode de jeito nenhum no dia aberto (ex: não tem como ir na segunda), explique que os atendimentos são concentrados em dias específicos, mas que nossa atendente irá verificar uma possibilidade de encaixe para ele.\\n- CUIDADOS E DÚVIDAS PÓS-CIRURGIA ESTÉTICA DA FACE (Lifting Facial, Cervicoplastia, Blefaroplastia, etc.):\\n  • Se a paciente perguntar sobre cuidados ou pós-operatório de cirurgia facial, responda com segurança com base nas recomendações oficiais da equipe responsável do Beautes Coworking:\\n  • Uso da cinta facial: usar pelo tempo orientado pelo profissional (geralmente uso contínuo por 45 dias), retirando apenas para banhos, atividade física e necessidades especiais pessoais.\\n  • Compressa gelada nas primeiras 48 a 72 horas: aplicar por 15 a 20 minutos a cada 2 horas (reduz inchaço, dor e hematomas; usar toalha fina entre o gelo e a pele).\\n  • Drenagens linfáticas: iniciar com 10 dias de pós-procedimento com profissional qualificado (reduz inchaço, previne fibroses, acelera a recuperação e melhora o contorno facial).\\n  • Hidratação e alimentação: beber 2 a 3 litros de água por dia; alimentação saudável rica em proteínas, vitaminas e minerais; evitar industrializados, gorduras, açúcares e excesso de sódio.\\n  • Repouso e postura: repouso nos primeiros dias; elevar a cabeça ao dormir com 2 travesseiros (dormir de barriga para cima, sem apoiar o rosto); evitar esforços físicos.\\n  • Atividade física: evitar atividades físicas intensas por 30 a 45 dias (caminhadas leves podem ser liberadas sob orientação).\\n  • Restrições: sem bebidas alcoólicas por pelo menos 15 dias; não fumar (prejudica a cicatrização e aumenta o risco de complicações); evitar exposição ao sol direto por 30 a 60 dias (usar protetor solar FPS 50+ diariamente); evitar maquiagem nos primeiros 10 a 15 dias; não manipular/massagear/pressionar a área operada; evitar óculos que pressionem a região; evitar calor excessivo (sauna, banho muito quente); evitar viagens de avião nas primeiras semanas e não realizar outros procedimentos estéticos sem liberação.\\n  • Evolução: inchaço mais evidente e hematomas do 1º ao 3º dia; redução gradual do inchaço do 4º ao 7º dia; drenagens no 10º dia; melhora significativa do contorno da 2ª à 4ª semana; resultado final entre 3 e 6 meses.\\n  • Sinais de alerta: se houver dor intensa e progressiva, aumento importante do inchaço, vermelhidão/calor local/febre, secreção/mau cheiro, sangramento persistente, assimetria importante ou qualquer alteração preocupante, orientar a procurar a clínica imediatamente.\\n\\n\") + \"=========================================\\nDIRETRIZES DE COMUNICAÇÃO (PARA TODAS AS ÁREAS)\\n=========================================\\n- Responda primeiro e com prioridade ao que o cliente perguntou (especialmente se perguntar valores ou dúvidas sobre procedimentos). NUNCA ignore a pergunta para focar apenas em agendamento.\\n- Depois de responder à dúvida, faça no máximo uma pergunta, apenas a mais útil para avançar. Não faça várias perguntas na mesma mensagem nem transforme o atendimento em interrogatório.\\n- Se a cliente estiver pesquisando, explique e ajude sem pressionar.\\n- Horário de funcionamento no geral: De 9h às 18h para qualquer serviço, atendimento ou reserva. Se perguntarem qual o horário de funcionamento, responda que é das 9h às 18h.\\n- Consultas avaliativas e procedimentos: Seguem preenchimento sequencial de dias (iniciando por segunda-feira, das 9h às 18h).\\n- Pré-reserva não significa disponibilidade confirmada. Nunca afirme que o horário está confirmado; informe sempre a pré-reserva e que uma atendente irá confirmar o horário na agenda.\\n- Informações não cadastradas (equipamentos, esterilização, etc.): Não invente. Diga: \\\"Essa informação eu prefiro confirmar para você para não te passar nada incorreto. Vou encaminhar essa dúvida para nossa atendente.\\\"\\n\\nMENSAGEM FINAL DE CONFIRMAÇÃO (MUITO IMPORTANTE):\\n- Sempre que finalizar QUALQUER agendamento ou pré-reserva (Estética, Cirurgia ou Coworking), encerre com EXATAMENTE este texto:\\n“Ok, tudo anotado! 💖 Uma atendente irá verificar e confirmar o seu horário na nossa agenda. Assim que ela confirmar, você receberá uma mensagem por aqui avisando! 🥰”\\n\\nPRIORIDADE DA AGENDA: o DIA DA SEMANA ABERTO recebido no contexto é a fonte atual da agenda. Referências anteriores à segunda-feira descrevem apenas o início da sequência; se o dia aberto for outro, use esse dia. Nunca invente disponibilidade. Pedidos para outro dia devem ser apresentados como solicitação de encaixe à atendente, sem promessa de vaga.\\nSe o contexto informar erro de data/horário, explique o erro e peça correção antes de pré-reservar.\\nSe o agendamento já foi confirmado e a cliente fizer outra pergunta, responda à pergunta normalmente; não repita somente a confirmação.\\nDiária odontológica de 10 horas: mantenha a tabela comercial, mas encaminhe à atendente a distribuição das horas; não prometa 10 horas contínuas dentro do expediente das 9h às 18h.\\n\" }}",
           "maxIterations": 10
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.6,
       "position": [
-        2736,
-        320
+        8440,
+        360
       ],
       "id": "2321fe05-a7c3-4837-9baf-015bc487a402",
       "name": "Assistente Bia (Gemini)"
@@ -545,8 +670,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.1,
       "position": [
-        2736,
-        496
+        8340,
+        580
       ],
       "id": "80d640e9-9d9c-4c7e-8699-470bc395f933",
       "name": "Gemini Chat Model",
@@ -560,15 +685,15 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "=beautes:chat:{{ $json.tenant_slug }}:{{ $json.remoteJid }}",
+        "sessionKey": "=beautes:chat:v2:{{ $(\"Finalizar Estado Agendamento\").item.json.tenant_slug }}:{{ $(\"Finalizar Estado Agendamento\").item.json.remoteJid }}:{{ $(\"Finalizar Estado Agendamento\").item.json.isCoworkingInquiry ? \"coworking\" : \"procedimentos\" }}",
         "sessionTTL": 86400,
         "contextWindowLength": 8
       },
       "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
       "typeVersion": 1.5,
       "position": [
-        2848,
-        496
+        8540,
+        580
       ],
       "id": "021bdee3-d1b9-4716-8d02-12007e1cb437",
       "name": "Memoria Redis da Conversa",
@@ -581,13 +706,13 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('Preparar Contexto Beautes').item.json;\nconst raw = String($json.output || $json.text || '').trim();\nconst responseText = raw;\n\nconst precisaValidacao = /(aguarde.*especialista|\\bpix\\b|comprovante|pagamento|pr[ée]-reservad|confirmar.*hor[áa]rio|tudo anotado)/i.test(raw);\nconst handoff = Boolean(base.handoff || precisaValidacao);\nconst stage = handoff ? 'Validacao de Pagamento/Agendamento' : base.stage;\n\nreturn { json: { ...base, responseText, handoff, stage, direction: 'inbound', sender_type: 'contact', delivery_status: 'received' } };"
+        "jsCode": "const base = $('Finalizar Estado Agendamento').item.json;\nconst raw = String($json.output || $json.text || '').trim();\nconst state = base.booking_state || {};\nlet responseText = raw;\nconst schedule = String(state.scheduled_at || '');\nconst scheduleDate = schedule ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(schedule)) : '';\nconst scheduleWeekday = schedule ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' }).format(new Date(schedule)) : '';\nconst scheduleTime = schedule ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(schedule)) : '';\nif (!responseText && state.system_confirmed && base.data_agendamento) {\n  responseText = '✅ Seu agendamento de ' + state.service_label + ' está confirmado para ' + scheduleWeekday + ', ' + scheduleDate + ' às ' + scheduleTime + '.';\n} else if (!responseText) {\n  if (base.service_needs_clarification) responseText = 'Para eu registrar corretamente, qual desses serviços você deseja: ' + (state.service_options || []).join(' ou ') + '?';\n  else if (state.schedule_error) responseText = 'Não consegui validar essa data ou horário. Pode me informar novamente, sem abreviações? Não alterei o horário anterior.';\n  else if (state.scheduled_at && state.service_tag && state.awaiting_customer_confirmation) responseText = 'Entendi: ' + state.service_label + ' para ' + scheduleWeekday + ', ' + scheduleDate + ' às ' + scheduleTime + '. Você confirma exatamente esse serviço e horário?';\n  else if (state.customer_confirmed && base.data_agendamento) responseText = 'Certo, registrei ' + state.service_label + ' para ' + scheduleWeekday + ', ' + scheduleDate + ' às ' + scheduleTime + '. Uma atendente irá verificar e confirmar o seu horário na nossa agenda. Assim que ela confirmar, você receberá uma mensagem por aqui avisando! 🥰';\n}\n// Guard against a model response about renting rooms when the customer is a patient.\nconst unrelatedRental = !base.isCoworkingInquiry && /(DbdUm2DxAGu|quantas horas|aluguel de sala|consult[oó]rio odontol[oó]gico completo)/i.test(responseText);\nif (unrelatedRental) {\n  if (state.service_tag === 'serviço:endolaser') responseText = 'Para o Endolaser, o valor do procedimento é definido em consulta avaliativa, conforme sua necessidade. A avaliação custa R$50. Gostaria de agendar uma avaliação?';\n  else if (state.service_label) responseText = 'Sobre ' + state.service_label + ', vou seguir com o atendimento desse procedimento. Qual informação você gostaria de saber?';\n  else responseText = 'Olá! Sou Bia, assistente virtual do Beautes Coworking. Como posso ajudar?';\n}\nconst precisaValidacao = /(aguarde.*(especialista|atendente|equipe)|atendente|\\bpix\\b|comprovante|pagamento|pr[ée]-reservad|confirmar.*hor[áa]rio|tudo anotado)/i.test(responseText);\nconst handoff = state.system_confirmed ? false : Boolean(state.customer_confirmed || base.handoff || precisaValidacao);\nconst stage = state.system_confirmed ? 'Agendamento Confirmado' : state.customer_confirmed ? 'Validacao de Pagamento/Agendamento' : state.scheduled_at && state.service_tag ? 'Agendamento' : handoff ? 'Validacao de Pagamento/Agendamento' : base.stage;\nresponseText += '\\u200B';\nreturn { json: { ...base, responseText, handoff, stage, direction: 'inbound', sender_type: 'contact', delivery_status: 'received' } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2976,
-        320
+        8740,
+        360
       ],
       "id": "96380407-455c-4b31-96b8-d2d4e0341a7c",
       "name": "Preparar Resposta Beautes"
@@ -638,6 +763,10 @@
               "fieldValue": "={{ $json.service }}"
             },
             {
+              "fieldId": "data_agendamento",
+              "fieldValue": "={{ $json.data_agendamento || null }}"
+            },
+            {
               "fieldId": "stage",
               "fieldValue": "={{ $json.stage }}"
             },
@@ -663,8 +792,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        3216,
-        320
+        8980,
+        360
       ],
       "id": "5ca84af0-4764-4051-b830-e1429c37753d",
       "name": "Salvar Evento Recebido",
@@ -682,8 +811,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3344,
-        320
+        9220,
+        360
       ],
       "id": "cee164b8-c304-42f1-b461-cf6ffab0186b",
       "name": "Restaurar Contexto para Envio"
@@ -699,8 +828,8 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        3456,
-        320
+        10440,
+        360
       ],
       "id": "70960c61-5ee9-47b1-b593-52d176a9afdc",
       "name": "Enviar Resposta pela Evolution",
@@ -718,8 +847,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3696,
-        320
+        10680,
+        360
       ],
       "id": "656a67c7-64b7-4d1f-9570-dfe4b3ba102b",
       "name": "Preparar Evento Enviado"
@@ -770,6 +899,10 @@
               "fieldValue": "={{ $json.service }}"
             },
             {
+              "fieldId": "data_agendamento",
+              "fieldValue": "={{ $json.data_agendamento || null }}"
+            },
+            {
               "fieldId": "stage",
               "fieldValue": "={{ $json.stage }}"
             },
@@ -791,8 +924,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        3936,
-        320
+        10920,
+        360
       ],
       "id": "b5305a3d-59d2-4db0-b657-d43f40d5080b",
       "name": "Salvar Evento Enviado",
@@ -806,17 +939,82 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, channel: 'whatsapp', external_message_id: $('Preparar Evento Enviado').item.json.messageId, response: $('Preparar Evento Enviado').item.json.messageText, delivery_status: 'sent' } }}",
+        "responseBody": "={{ { ok: true, channel: 'whatsapp', external_message_id: $('Preparar Evento Enviado').item.json.externalMessageId, response: $('Preparar Evento Enviado').item.json.messageText, delivery_status: 'sent' } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        4656,
-        320
+        5040,
+        360
       ],
       "id": "08b02f0f-717e-4a5d-98b0-8b1d5a40d436",
       "name": "Responder Evolution API"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "send-coworking-image",
+              "leftValue": "={{ $json.send_coworking_image === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9460,
+        360
+      ],
+      "id": "4376e799-8a5b-42c4-a936-b920d88cd64a",
+      "name": "Detectar Sublocação para Imagem"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "send-image",
+        "instanceName": "Amanda",
+        "remoteJid": "={{ $json.remoteJid }}",
+        "media": "={{ $json.coworking_image_url }}",
+        "mimetype": "image/jpeg",
+        "caption": "={{ $json.coworking_image_caption }}",
+        "fileName": "beautes-coworking.jpeg",
+        "options_message": {},
+        "image": "={{ $json.coworking_image_url }}",
+        "mediaUrl": "={{ $json.coworking_image_url }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        9940,
+        580
+      ],
+      "id": "708e2f3d-e17f-4ede-8f03-961937d05d2f",
+      "name": "Enviar Imagem Beautes",
+      "credentials": {
+        "evolutionApi": {
+          "id": "uOV6FFGhyIhaWfSX",
+          "name": "Evolution account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -829,10 +1027,96 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $('Preparar Resposta Beautes').item.json.isCoworkingInquiry }}",
+              "id": "1",
+              "leftValue": "={{ $('Preparar Evento Enviado').item.json.booking_state.customer_confirmed === true && !$('Preparar Evento Enviado').item.json.booking_state.system_confirmed }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "2",
+              "leftValue": "={{ $('Preparar Evento Enviado').item.json.service_tag }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "3",
+              "leftValue": "={{ $('Preparar Evento Enviado').item.json.data_agendamento }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5ecbc3a9-3df7-463e-ac3d-0d65ffc4b9e2",
+      "name": "Cliente confirmou serviço e horário?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11160,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "={{ 'beautes:appointment-request-alert:' + $('Preparar Evento Enviado').item.json.remoteJid + ':' + $('Preparar Evento Enviado').item.json.service_tag + ':' + $('Preparar Evento Enviado').item.json.data_agendamento }}",
+        "expire": false
+      },
+      "id": "c821e4a2-6f13-4da4-b657-34aa47f76f4c",
+      "name": "Reivindicar Alerta de Solicitação",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        11400,
+        360
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let original = {};\ntry { original = $('Preparar Evento Enviado').item.json; } catch (_) {}\nconst row = { ...original, ...$json };\nconst tag = String(row.service_tag || '');\nconst slug = tag.startsWith('serviço:') ? tag.slice('serviço:'.length) : '';\nconst labels = { endolaser: 'Endolaser', botox: 'Toxina Botulnica (Botox)', consulta: 'Consulta', preenchimento: 'Preenchimento', 'preenchimento-labial': 'Preenchimento Labial', 'preenchimento-facial-full-face': 'Preenchimento Facial (Full Face)', 'skin-booster': 'Skin Booster', 'limpeza-de-pele-profunda': 'Limpeza de Pele Profunda', 'acompanhamento-pos-operatorio': 'Acompanhamento Ps-operatrio', 'estimulador-de-colageno': 'Estimulador de Colǭgeno', microagulhamento: 'Microagulhamento', 'massagem-modeladora': 'Massagem Modeladora', 'coworking-odontologico': 'Coworking Odontolgico' };\nconst alertService = labels[slug] || slug.replaceAll('-', ' ');\n\nconst storedSchedule = String(row.data_agendamento || '');\nconst hasTimezone = new RegExp('[zZ]|[-+][0-9]{2}:[0-9]{2}$').test(storedSchedule);\nlet scheduled = storedSchedule;\nif (!hasTimezone) {\n  if (scheduled.length === 16) scheduled += ':00';\n  scheduled += '-03:00';\n}\nconst date = new Date(scheduled);\n\nconst alertDate = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(date);\nconst alertWeekday = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' }).format(date);\nconst alertTime = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);\nconst timeText = alertTime.endsWith(':00') ? alertTime.slice(0, 2) + 'h' : alertTime.replace(':', 'h');\n\nconst alertCount = row.alert_count || Number($json[\"beautes:appointment-request-alert:\" + row.remoteJid + \":\" + row.service_tag + \":\" + row.data_agendamento] || 0);\n\nlet alertMessage = \"\";\nif (alertCount === 1) {\n    alertMessage = \"Pedido de agendamento: serviço \" + slug + \" para \" + alertWeekday + \" (\" + alertDate + \") às \" + timeText + \". Confira no painel e confirme quando estiver validado.\";\n}\n\nreturn { json: { ...row, alert_message: alertMessage ? alertMessage + '\\u200B' : '', alert_count: alertCount } };"
+      },
+      "id": "948d242d-8dba-44e6-9dc7-c2758c46f72d",
+      "name": "Preparar Alerta para Atendente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11640,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.alert_count }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
                 "operation": "equals"
               }
             }
@@ -841,40 +1125,227 @@
         },
         "options": {}
       },
+      "id": "0a3aa3a2-8a43-4dae-9ee0-4b9784e2c932",
+      "name": "É o primeiro alerta?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4176,
-        320
-      ],
-      "id": "4376e799-8a5b-42c4-a936-b920d88cd64a",
-      "name": "Detectar Sublocação para Imagem"
+        11880,
+        360
+      ]
     },
     {
       "parameters": {
         "resource": "messages-api",
-        "operation": "send-image",
         "instanceName": "Amanda",
-        "remoteJid": "={{ $('Preparar Evento Enviado').item.json.remoteJid }}",
-        "media": "https://foxsxchuwguyahimkxfd.supabase.co/storage/v1/object/public/assets-beautes/imagem%20beautes.jpeg",
-        "mimetype": "image/jpeg",
-        "caption": "Tabela de opções para sublocação do consultório odontológico.\nConheça o espaço: https://www.instagram.com/reel/DbdUm2DxAGu/?stkn=MWd5NTZ3NGV2bWJ5",
-        "fileName": "imagem beautes.jpeg",
+        "remoteJid": "5522996186798@s.whatsapp.net",
+        "messageText": "={{ $json.alert_message }}",
         "options_message": {}
       },
+      "id": "f85e0738-3b3f-4807-a0e4-9e3a507cd128",
+      "name": "Avisar Atendente Agendamento",
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        4416,
-        224
+        12120,
+        360
       ],
-      "id": "708e2f3d-e17f-4ede-8f03-961937d05d2f",
-      "name": "Enviar Imagem Beautes",
       "credentials": {
         "evolutionApi": {
           "id": "uOV6FFGhyIhaWfSX",
           "name": "Evolution account"
         }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isHuman }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "c4028edc-d0ea-49d7-b896-07d242bd9ba9",
+      "name": "Checar Humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'beautes:whatsapp:paused:' + $json.remoteJid }}",
+        "value": "true",
+        "expire": true,
+        "ttl": 86400
+      },
+      "id": "39a5efdc-2031-408b-ae37-0ef03ca1fd11",
+      "name": "Pausar Bot no Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        720,
+        160
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "bot_paused",
+        "key": "={{ 'beautes:whatsapp:paused:' + $json.remoteJid }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "id": "bb795b0c-8de3-421d-8407-9d1bbbea00f8",
+      "name": "Ler Pausa Bot no Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        720,
+        360
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json;\nconst images = Array.isArray(ctx.coworking_images) ? ctx.coworking_images : [];\n// \\u200B = assinatura invisível do bot: sem ela o webhook leria a imagem como mensagem de humano e pausaria a Bia.\nreturn images.map((image) => ({ json: { ...ctx, coworking_image_url: image.url, coworking_image_caption: image.caption + '\\u200B' }, pairedItem: { item: 0 } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9700,
+        580
+      ],
+      "id": "a1c0e7d2-5b1f-4c3a-9d61-0b7e2f4a8c01",
+      "name": "Montar Imagens Coworking"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$('Preparar Resposta Beautes').first().json, inbound_saved: true }, pairedItem: { item: 0 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10180,
+        580
+      ],
+      "id": "b2d1f8e3-6c2a-4d4b-8e72-1c8f3a5b9d02",
+      "name": "Restaurar Contexto apos Imagem"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Normalizar Entrada WhatsApp').item.json;\nconst botPaused = String($json.bot_paused || '').toLowerCase() === 'true';\nreturn { json: { ...original, bot_paused: botPaused ? 'true' : '' } };"
+      },
+      "id": "7b3a4f1e-9c2d-4811-a53f-4e0821dc1a99",
+      "name": "Restaurar Contexto apos Pausa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "dia_aberto_raw",
+        "key": "beautes:agenda:dia_aberto",
+        "keyType": "string",
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "id": "a1b2c3d4-e5f6-4a1b-9c2d-3e4f5a6b7c8d",
+      "name": "Ler Dia Aberto Agenda",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        6480,
+        360
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'beautes:whatsapp:booking:' + $json.tenant_slug + ':' + $json.remoteJid }}",
+        "value": "={{ JSON.stringify($json.booking_state) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ],
+      "id": "save-coworking-delivered",
+      "name": "Salvar Estado apos Imagens",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "release-failed-owner-alert",
+      "name": "Liberar Alerta com Falha",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        700
+      ],
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ 'beautes:appointment-request-alert:' + $('Preparar Evento Enviado').item.json.remoteJid + ':' + $('Preparar Evento Enviado').item.json.service_tag + ':' + $('Preparar Evento Enviado').item.json.data_agendamento }}"
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "response-owner-alert-failed",
+      "name": "Responder Alerta Pendente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2500,
+        700
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, delivery_status: \"sent\", attendant_alert: \"failed\" } }}",
+        "options": {}
       }
     }
   ],
@@ -895,7 +1366,7 @@
       "main": [
         [
           {
-            "node": "Mensagem valida?",
+            "node": "Checar Humano?",
             "type": "main",
             "index": 0
           }
@@ -1165,6 +1636,83 @@
       "main": [
         [
           {
+            "node": "Ler Dia Aberto Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Estado Agendamento": {
+      "main": [
+        [
+          {
+            "node": "Unificar Estado Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unificar Estado Agendamento": {
+      "main": [
+        [
+          {
+            "node": "Sanitizar Contexto Serviço",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitizar Contexto Serviço": {
+      "main": [
+        [
+          {
+            "node": "Resolver Hoje ou Próxima Semana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Hoje ou Próxima Semana": {
+      "main": [
+        [
+          {
+            "node": "Reconciliar Estado Confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconciliar Estado Confirmado": {
+      "main": [
+        [
+          {
+            "node": "Finalizar Estado Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalizar Estado Agendamento": {
+      "main": [
+        [
+          {
+            "node": "Salvar Estado Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Estado Agendamento": {
+      "main": [
+        [
+          {
             "node": "Assistente Bia (Gemini)",
             "type": "main",
             "index": 0
@@ -1231,7 +1779,7 @@
       "main": [
         [
           {
-            "node": "Enviar Resposta pela Evolution",
+            "node": "Detectar Sublocação para Imagem",
             "type": "main",
             "index": 0
           }
@@ -1264,7 +1812,7 @@
       "main": [
         [
           {
-            "node": "Detectar Sublocação para Imagem",
+            "node": "Cliente confirmou serviço e horário?",
             "type": "main",
             "index": 0
           }
@@ -1275,7 +1823,36 @@
       "main": [
         [
           {
-            "node": "Enviar Imagem Beautes",
+            "node": "Montar Imagens Coworking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Resposta pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Imagem Beautes": {
+      "main": [
+        [
+          {
+            "node": "Restaurar Contexto apos Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cliente confirmou serviço e horário?": {
+      "main": [
+        [
+          {
+            "node": "Reivindicar Alerta de Solicitação",
             "type": "main",
             "index": 0
           }
@@ -1289,11 +1866,164 @@
         ]
       ]
     },
-    "Enviar Imagem Beautes": {
+    "Reivindicar Alerta de Solicitação": {
+      "main": [
+        [
+          {
+            "node": "Preparar Alerta para Atendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Alerta para Atendente": {
+      "main": [
+        [
+          {
+            "node": "É o primeiro alerta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É o primeiro alerta?": {
+      "main": [
+        [
+          {
+            "node": "Avisar Atendente Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Humano?": {
+      "main": [
+        [
+          {
+            "node": "Pausar Bot no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler Pausa Bot no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar Bot no Redis": {
+      "main": [
+        [
+          {
+            "node": "Responder Evento Ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Pausa Bot no Redis": {
+      "main": [
+        [
+          {
+            "node": "Restaurar Contexto apos Pausa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Imagens Coworking": {
+      "main": [
+        [
+          {
+            "node": "Enviar Imagem Beautes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar Contexto apos Imagem": {
+      "main": [
+        [
+          {
+            "node": "Salvar Estado apos Imagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar Contexto apos Pausa": {
+      "main": [
+        [
+          {
+            "node": "Mensagem valida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Dia Aberto Agenda": {
+      "main": [
+        [
+          {
+            "node": "Ler Estado Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar Atendente Agendamento": {
       "main": [
         [
           {
             "node": "Responder Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Liberar Alerta com Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Estado apos Imagens": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liberar Alerta com Falha": {
+      "main": [
+        [
+          {
+            "node": "Responder Alerta Pendente",
             "type": "main",
             "index": 0
           }

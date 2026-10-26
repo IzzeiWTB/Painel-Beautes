@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-26",
+  "workflows": [
+    {
+      "id": "FOmnncnOeXOaj7xd",
+      "file": "Bia Beautes - WhatsApp Evolution V4.5 + Redis Debounce 10s (2).json",
+      "previousVersionId": "37efc50a-d8a8-409e-bfb9-0a02a5c92f4e",
+      "versionId": "3d823eec-2029-48ae-b7c1-c22552707ddb",
+      "activeVersionId": "3d823eec-2029-48ae-b7c1-c22552707ddb",
+      "nodes": 61,
+      "verifiedAt": "2026-10-26T19:30:57.931Z",
+      "sha256": "0bc80bfa83cdad0017771ef741a42fc8a170b1919e9ae479449282b733ebe0cb"
+    },
+    {
+      "id": "Ldox1WUD00OGkgfL",
+      "file": "Beautes - API Kanban Dashboard (2).json",
+      "previousVersionId": "f1010092-63ea-472d-a890-4cebb0de38f1",
+      "versionId": "bee119f5-6137-4757-b9d6-968afa76f6a4",
+      "activeVersionId": "bee119f5-6137-4757-b9d6-968afa76f6a4",
+      "nodes": 49,
+      "verifiedAt": "2026-10-26T19:31:48.282Z",
+      "sha256": "97d941313311b28a16a5860c31f4742c72d46c928301db1fe43d2b9c3042733b"
+    }
+  ],
+  "endpoints": [
+    {
+      "path": "beautes-dashboard",
+      "status": 401
+    },
+    {
+      "path": "beautes-confirmar",
+      "status": 401
+    },
+    {
+      "path": "beautes-agenda-dia",
+      "status": 401
+    },
+    {
+      "path": "beautes-pos-preenchimento",
+      "status": 401
+    },
+    {
+      "path": "beautes-painel-contato",
+      "status": 401
+    }
+  ],
+  "checks": {
+    "nodeTests": 53,
+    "auditChecks": 13,
+    "geminiAndRedis": {
+      "greeting": true,
+      "endolaser": true,
+      "coworking": true,
+      "redisPersistence": true
+    },
+    "panelRedis": {
+      "redisKeysAndMerge": true
+    },
+    "browser": "Edge headless; API and authentication mocked; render, safe contact names, cadastro, signature, active day, no page errors"
+  },
+  "panel": {
+    "file": "Painel_Amanda.html",
+    "sha256": "991dc68528e1589ec634207cedf70c033b37ea53205c353beec5c2c7782fc324",
+    "publication": "GitHub Pages CI on main"
+  },
+  "exclusions": [
+    "Supabase anonymous access and team authorization retained by user request",
+    "Evolution webhook origin authentication requires emitter/proxy configuration"
+  ],
+  "noCustomerMessagesSent": true
+}

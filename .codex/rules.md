@@ -10,8 +10,8 @@ When a task matches one of these patterns, enforce the corresponding workflow:
 - **Security-sensitive code** → audit: input validation, auth, secrets, injection, data exposure
 
 ## Before Writing Code
-1. Determine if the change needs a spec (`spec-driven-development`)
-2. Break work into ordered, verifiable tasks (`planning-and-task-breakdown`)
+1. Read `AGENTS.md` and write requirements for changes spanning multiple flows.
+2. Break work into ordered, verifiable tasks using the installed `incremental-implementation` skill.
 3. Small changes (< 3 files): plan mentally. Larger: write down
 
 ## While Coding
@@ -22,7 +22,7 @@ When a task matches one of these patterns, enforce the corresponding workflow:
 
 ## Before Committing
 1. All tests pass
-2. No lint errors
+2. Parse workflow JSON and JavaScript; this repository has no configured lint/typecheck or npm package. Run the explicit Node commands in `AGENTS.md`.
 3. No secrets or credentials in diff
 4. Review your own diff across 5 axes (correctness, design, readability, security, performance)
 

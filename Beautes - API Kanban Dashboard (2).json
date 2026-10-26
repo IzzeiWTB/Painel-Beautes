@@ -4,8 +4,7 @@
     {
       "parameters": {
         "path": "beautes-dashboard",
-        "responseMode": "lastNode",
-        "responseData": "allEntries",
+        "responseMode": "responseNode",
         "options": {}
       },
       "id": "425fe9ab-b1df-4873-9703-cc28234a0bee",
@@ -13,8 +12,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
       "position": [
-        -16,
-        336
+        0,
+        200
       ],
       "webhookId": "b8ab5b22-80bc-4752-ac63-9ab51dd4f2be"
     },
@@ -23,28 +22,31 @@
         "operation": "getAll",
         "tableId": "view_kanban_beautes",
         "limit": 100,
-        "orderBy": "data_solicitacao.desc"
+        "orderBy": "data_solicitacao.desc",
+        "returnAll": true
       },
       "id": "6825f764-ca06-42bf-9fc1-bd0dcbcbd857",
       "name": "Buscar Pendentes (View)",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        208,
-        336
+        520,
+        200
       ],
       "credentials": {
         "supabaseApi": {
           "id": "XFJa1kmsB6Qcczel",
           "name": "Supabase account"
         }
-      }
+      },
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "beautes-confirmar",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {}
       },
       "id": "e53d0f55-736b-43b0-9c62-2b980dd1d6bc",
@@ -52,26 +54,38 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
       "position": [
-        -112,
-        576
+        0,
+        480
       ],
       "webhookId": "21e281ce-3163-4bc9-a147-4294efd90229"
     },
     {
       "parameters": {
-        "jsCode": "return { json: { remote_jid: $json.body.remote_jid, data_agendamento: $json.body.data_agendamento } };"
+        "jsCode": "const request = $('POST Confirmar Cliente').item.json; const body = request.body || {}; const remote_jid = String(body.remote_jid || '').trim(); const requestedTime = String(body.data_agendamento || '').trim(); const service_tag = String(body.service_tag || '').trim(); const dateTimePattern = new RegExp('^(20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(?::[0-9]{2})?)([-+][0-9]{2}:[0-9]{2}|Z)?$'); const match = requestedTime.match(dateTimePattern); const slug = service_tag.startsWith('serviço:') ? service_tag.slice('serviço:'.length) : ''; if (!new RegExp('^[0-9]+@s\\\\.whatsapp\\\\.net$').test(remote_jid) || !match || !new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$').test(slug)) throw new Error('Dados de confirmação incompletos ou inválidos.'); let data_agendamento = match[1]; if (data_agendamento.length === 16) data_agendamento += ':00'; data_agendamento += match[2] || '-03:00'; const parts = data_agendamento.match(new RegExp('^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})')); const [year, month, day, hour, minute, second] = parts.slice(1).map(Number); const calendar = new Date(Date.UTC(year, month - 1, day, hour, minute, second)); if (!Number.isFinite(Date.parse(data_agendamento)) || calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day || hour > 23 || minute > 59 || second > 59) throw new Error('Data ou horário inválido.'); return { json: { remote_jid, data_agendamento, service_tag } };"
       },
       "id": "e0427261-f539-4398-af42-85991aa0b131",
       "name": "Extrair Dados",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        96,
-        576
-      ]
+        520,
+        480
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "external_message_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.external_message_id }}"
+            }
+          ]
+        },
         "operation": "update",
         "tableId": "channel_events",
         "fieldsUi": {
@@ -83,10 +97,6 @@
             {
               "fieldId": "stage",
               "fieldValue": "Agendamento Confirmado"
-            },
-            {
-              "fieldId": "data_agendamento",
-              "fieldValue": "={{ $json.data_agendamento }}"
             }
           ]
         }
@@ -96,22 +106,23 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        288,
-        576
+        1300,
+        480
       ],
       "credentials": {
         "supabaseApi": {
           "id": "XFJa1kmsB6Qcczel",
           "name": "Supabase account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
         "resource": "messages-api",
         "instanceName": "Amanda",
-        "remoteJid": "={{ $('Extrair Dados').item.json.remote_jid }}",
-        "messageText": "✅ Olá! Passando para avisar que o seu agendamento foi oficialmente confirmado pela nossa equipa. Te esperamos na clínica! 💖",
+        "remoteJid": "={{ $('Marcar Estado Confirmado').item.json.remote_jid }}",
+        "messageText": "={{ '✅ Olá! Passando para avisar que o seu agendamento de ' + $('Marcar Estado Confirmado').item.json.alert_service + ' foi confirmado para ' + $('Marcar Estado Confirmado').item.json.alert_weekday + ', ' + $('Marcar Estado Confirmado').item.json.alert_date + ' às ' + $('Marcar Estado Confirmado').item.json.alert_time + '. Te esperamos na clínica! 💖' + '\\u200B' }}",
         "options_message": {}
       },
       "id": "23727fc9-120d-4473-a640-0ea3406ffa16",
@@ -119,20 +130,21 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        496,
-        576
+        2600,
+        480
       ],
       "credentials": {
         "evolutionApi": {
           "id": "uOV6FFGhyIhaWfSX",
           "name": "Evolution account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"sucesso\": true,\n  \"mensagem\": \"Cliente confirmado com data!\"\n}",
+        "responseBody": "{\"sucesso\":true,\"success\":true,\"delivery_status\":\"sent\",\"mensagem\":\"Agendamento confirmado e mensagem enviada.\"}",
         "options": {}
       },
       "id": "a591976f-64f8-4b08-bedd-8324eac5a3bd",
@@ -140,9 +152,926 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        688,
-        576
+        2860,
+        480
       ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://foxsxchuwguyahimkxfd.supabase.co/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c444cab2-3610-48e5-9050-e7fe0ab88df1",
+      "name": "Validar Sessão GET",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        200
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://foxsxchuwguyahimkxfd.supabase.co/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "75eead47-3bc2-42a5-99e0-45386ce0f196",
+      "name": "Validar Sessão POST",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        480
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "channel_events",
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": "created_at.desc",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "external_conversation_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.remote_jid }}"
+            },
+            {
+              "keyName": "direction",
+              "condition": "eq",
+              "keyValue": "outbound"
+            },
+            {
+              "keyName": "data_agendamento",
+              "condition": "eq",
+              "keyValue": "={{ $json.data_agendamento }}"
+            },
+            {
+              "keyName": "service",
+              "condition": "eq",
+              "keyValue": "={{ $json.service_tag }}"
+            }
+          ]
+        }
+      },
+      "id": "a0ba2eb4-67a1-46a1-beb7-95ed56ddfb29",
+      "name": "Buscar Agendamento Pendente",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        780,
+        480
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "XFJa1kmsB6Qcczel",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Extrair Dados').item.json; const record = $json; if (record.external_conversation_id !== request.remote_jid || record.service !== request.service_tag || Date.parse(record.data_agendamento) !== Date.parse(request.data_agendamento) || !['Validacao de Pagamento/Agendamento', 'Agendamento Confirmado'].includes(record.stage)) throw new Error('O agendamento salvo não corresponde à confirmação solicitada.'); if (!record.external_message_id) throw new Error('O evento do agendamento não possui identificador para atualização segura.'); return { json: { ...record, remote_jid: request.remote_jid, service_tag: request.service_tag } };"
+      },
+      "id": "64d5e8b0-9d6c-46d1-9c0f-34c1cf171b8e",
+      "name": "Validar Agendamento Salvo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        480
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'beautes:whatsapp:booking:' + $json.tenant_slug + ':' + $json.remote_jid }}",
+        "value": "={{ JSON.stringify($json.booking_state) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 86400
+      },
+      "id": "b8ec0802-3d92-4bf0-8ced-cf76f83b0f7f",
+      "name": "Salvar Estado Confirmado",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        480
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const record = $('Validar Agendamento Salvo').item.json;\nconst labels = {\"endolaser\":\"Endolaser\",\"botox\":\"Toxina Botulínica (Botox)\",\"consulta\":\"Consulta\",\"preenchimento\":\"Preenchimento Facial e Labial\",\"skin-booster\":\"Skin Booster\",\"limpeza-de-pele-profunda\":\"Limpeza de Pele Profunda\",\"acompanhamento-pos-operatorio\":\"Acompanhamento Pós-operatório\",\"bioestimulador-de-colageno\":\"Bioestimulador de Colágeno\",\"estimulador-de-colageno\":\"Estimulador de Colágeno\",\"microagulhamento\":\"Microagulhamento\",\"massagem-modeladora\":\"Massagem Modeladora\",\"drenagem-linfatica\":\"Drenagem Linfática\",\"massagem-relaxante\":\"Massagem Relaxante\",\"massagem-pedras-quentes\":\"Massagem com Pedras Quentes\",\"peeling-quimico\":\"Peeling Químico\",\"tratamento-cicatriz\":\"Tratamento de Cicatriz\",\"remocao-verrugas\":\"Remoção de Verrugas a Laser\",\"remocao-queloide\":\"Remoção de Queloide\",\"remocao-xantelasma\":\"Remoção de Xantelasma\",\"reposicao-vitaminas\":\"Protocolos de Reposição de Vitaminas\",\"profilaxia\":\"Profilaxia\",\"clareamento\":\"Clareamento\",\"protese\":\"Prótese\",\"extracao\":\"Extração\",\"restauracao\":\"Restauração\",\"implante\":\"Implante\",\"lente-de-contato\":\"Lente de contato\",\"lifting-facial\":\"Lifting facial\",\"cervicoplastia\":\"Cervicoplastia\",\"blefaroplastia\":\"Blefaroplastia\",\"ortomodelacao\":\"Ortomodelação\",\"ortoplastia\":\"Ortoplastia\",\"rinomodelacao\":\"Rinomodelação\",\"coworking\":\"Coworking Beautes\",\"coworking-odontologico\":\"Coworking Odontológico\",\"coworking-procedimentos\":\"Coworking Sala de Procedimentos\"};\nconst tag = String(record.service_tag || record.service || '');\nconst slug = tag.startsWith('serviço:') ? tag.slice('serviço:'.length) : '';\nconst instant = new Date(record.data_agendamento);\nif (!Number.isFinite(instant.getTime())) throw new Error('Data do agendamento salvo é inválida.');\nconst fmt = (options) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', ...options }).format(instant);\nconst time = fmt({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });\nreturn { json: {\n  external_message_id: record.external_message_id,\n  remote_jid: record.remote_jid,\n  service_tag: tag,\n  tenant_slug: record.tenant_slug || 'beautes',\n  data_agendamento: record.data_agendamento,\n  alert_service: labels[slug] || slug.replace(/-/g, ' '),\n  alert_weekday: fmt({ weekday: 'long' }),\n  alert_date: fmt({ day: '2-digit', month: '2-digit' }),\n  alert_time: time.endsWith(':00') ? time.slice(0, 2) + 'h' : time.replace(':', 'h')\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        480
+      ],
+      "id": "3f6c1d0a-8e24-4b7a-9c15-6d2e7a4b1f10",
+      "name": "Preparar Mensagem Confirmação"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "booking_state_raw",
+        "key": "={{ 'beautes:whatsapp:booking:' + $json.tenant_slug + ':' + $json.remote_jid }}",
+        "keyType": "string",
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1820,
+        480
+      ],
+      "id": "4a7d2e1b-9f35-4c8b-8d26-7e3f8b5c2a21",
+      "name": "Ler Estado Agendamento (API)",
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Preparar Mensagem Confirmação').item.json;\nlet state = {};\ntry { state = typeof $json.booking_state_raw === 'string' && $json.booking_state_raw ? JSON.parse($json.booking_state_raw) : (($json.booking_state_raw && typeof $json.booking_state_raw === 'object') ? $json.booking_state_raw : {}); } catch (_) { state = {}; }\nif (!state || typeof state !== 'object' || Array.isArray(state)) state = {};\n// Só marca como confirmado pela equipe se o estado da conversa ainda aponta exatamente para o horário que a atendente validou.\nif (state.scheduled_at && Date.parse(state.scheduled_at) === Date.parse(base.data_agendamento) && state.service_tag === base.service_tag) {\n  state.updated_at = new Date().toISOString();\n  state.system_confirmed = true;\n  state.confirmed_scheduled_at = state.scheduled_at;\n}\nreturn { json: { ...base, booking_state: state } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        480
+      ],
+      "id": "5b8e3f2c-0a46-4d9c-9e37-8f4a9c6d3b32",
+      "name": "Marcar Estado Confirmado"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "beautes-agenda-dia",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f1a2b3c4-1111-4000-8000-000000000001",
+      "name": "POST Configurar Agenda",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "webhookId": "beautes-agenda-dia"
+    },
+    {
+      "parameters": {
+        "url": "https://foxsxchuwguyahimkxfd.supabase.co/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $('POST Configurar Agenda').item.json.headers?.authorization || ('Bearer ' + ($('POST Configurar Agenda').item.json.body?.access_token || '')) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f1a2b3c4-2222-4000-8000-000000000002",
+      "name": "Validar Sessão Agenda",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        800
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('POST Configurar Agenda').item.json.body || {};\nconst action = String(body.action || 'get').toLowerCase();\nconst validDays = ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];\nconst rawDay = String(body.dia_aberto || 'segunda').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();\nconst dia_aberto = validDays.includes(rawDay) ? rawDay : 'segunda';\nconst isSet = action === 'set';\nreturn { json: { action, isSet, dia_aberto, key: 'beautes:agenda:dia_aberto' } };"
+      },
+      "id": "f1a2b3c4-3333-4000-8000-000000000003",
+      "name": "Processar Ação Agenda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        800
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.isSet }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "f1a2b3c4-4444-4000-8000-000000000004",
+      "name": "É Salvar Dia?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "beautes:agenda:dia_aberto",
+        "value": "={{ $json.dia_aberto }}",
+        "keyType": "string"
+      },
+      "id": "f1a2b3c4-5555-4000-8000-000000000005",
+      "name": "Salvar Dia no Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        720
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, dia_aberto: $('Processar Ação Agenda').item.json.dia_aberto }) }}",
+        "options": {}
+      },
+      "id": "f1a2b3c4-6666-4000-8000-000000000006",
+      "name": "Responder Salvar Agenda",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1300,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "dia_aberto_raw",
+        "key": "beautes:agenda:dia_aberto",
+        "keyType": "string",
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "id": "f1a2b3c4-7777-4000-8000-000000000007",
+      "name": "Ler Dia no Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        880
+      ],
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, dia_aberto: $json.dia_aberto_raw || 'segunda' }) }}",
+        "options": {}
+      },
+      "id": "f1a2b3c4-8888-4000-8000-000000000008",
+      "name": "Responder Ler Agenda",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1300,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "beautes-pos-preenchimento",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f2b3c4d5-1111-4000-8000-000000000001",
+      "name": "POST Enviar Pos-Preenchimento",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1140
+      ],
+      "webhookId": "beautes-pos-preenchimento"
+    },
+    {
+      "parameters": {
+        "url": "https://foxsxchuwguyahimkxfd.supabase.co/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $('POST Enviar Pos-Preenchimento').item.json.headers?.authorization || ('Bearer ' + ($('POST Enviar Pos-Preenchimento').item.json.body?.token || $('POST Enviar Pos-Preenchimento').item.json.body?.access_token || '')) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2b3c4d5-2222-4000-8000-000000000002",
+      "name": "Validar Sessão Pos-Preenchimento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1140
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('POST Enviar Pos-Preenchimento').item.json.body || {};\nlet remoteJid = String(body.remoteJid || body.remote_jid || '').trim();\nif (remoteJid && !remoteJid.includes('@')) {\n  remoteJid = remoteJid.replace(/\\D/g, '');\n  if (!remoteJid.startsWith('55')) remoteJid = '55' + remoteJid;\n  remoteJid += '@s.whatsapp.net';\n}\nconst nome = String(body.nome || body.clientName || 'Cliente').trim();\nconst primeiroNome = nome.split(' ')[0] || 'Cliente';\nconst tipo = String(body.tipo || body.procedimento || body.service || '').toLowerCase();\nconst isTrazerEndolaser = tipo.includes('trazer') || tipo.includes('levar') || tipo === 'o_que_trazer_endolaser';\nconst isBotox = tipo.includes('botox') || tipo.includes('toxina');\nconst isEndolaser = !isTrazerEndolaser && tipo.includes('endolaser');\nconst isCirurgiaFace = tipo.includes('cirurgia') || tipo.includes('face') || tipo.includes('facial') || tipo.includes('lifting') || tipo.includes('blefaro') || tipo.includes('cervico');\n\nlet mediaUrl = 'https://izzeiwtb.github.io/Painel-Beautes/pos_preenchimento_labial.jpg';\nlet fileName = 'pos-preenchimento-labial.jpg';\nlet tipoFinal = 'labial';\nlet caption = '✨ *RECOMENDAÇÕES PÓS-PREENCHIMENTO LABIAL* ✨\\n\\nOlá, ' + primeiroNome + '! Seguem abaixo a sua arte com os cuidados essenciais para um resultado lindo, seguro e duradouro! 💖👇\\u200B';\nlet textoRecomendacoes = '👄 *CUIDADOS PÓS-PREENCHIMENTO LABIAL* 👄\\nDra. Amanda Barreto | Cirurgiã Dentista\\n\\n' +\n'1️⃣ *Dexametasona 4 mg:*\\n• Tomar 4 mg de 12 em 12 horas por 3 dias.\\n• Ajuda a reduzir o inchaço e o desconforto.\\n• _Use somente se houver prescrição individualizada._\\n\\n' +\n'2️⃣ *Compressa Gelada:*\\n• Aplicar compressa fria nas primeiras 48 horas.\\n• Fazer de 10 a 15 minutos a cada 2 horas.\\n• Ajuda a diminuir o inchaço e o desconforto.\\n\\n' +\n'3️⃣ *Hidratação Constante:*\\n• Manter os lábios sempre hidratados.\\n• Pode ser utilizado Bepantol Derma Labial ou hidratante labial de sua preferência.\\n• Evita o ressecamento e auxilia na cicatrização.\\n\\n' +\n'📌 *OUTRAS RECOMENDAÇÕES IMPORTANTES:*\\n• Evite calor excessivo (sol, sauna, banho muito quente) por 7 dias.\\n• Evite atividade física intensa por 48 horas.\\n• Não ingerir bebida alcoólica por 48 horas.\\n• Evite beijar nas primeiras 48 horas.\\n• Não massageie e não pressione os lábios.\\n• Evite uso de maquiagem labial nas primeiras 24 horas.\\n• Mantenha uma boa ingestão de água.\\n\\n' +\n'⏳ *EVOLUÇÃO ESPERADA:*\\n• *1º ao 3º dia:* Inchaço mais evidente.\\n• *4º ao 7º dia:* Redução gradual do inchaço e melhora do formato.\\n• *Até 15 dias:* Resultado mais estável.\\n• *Resultado final:* Entre 30 e 60 dias.\\n\\n' +\n'🚨 *PROCURE A CLÍNICA IMEDIATAMENTE SE NOTAR:*\\n• Dor intensa e progressiva\\n• Aumento importante do inchaço após o 3º dia\\n• Lábios com coloração arroxeada, pálida ou muito vermelha\\n• Surgimento de bolhas, feridas ou secreção\\n• Assimetria acentuada\\n• Qualquer alteração que gere preocupação\\n\\n' +\n'Estamos à disposição para qualquer dúvida! Tenha uma excelente recuperação! ✨💖\\u200B';\n\nif (isTrazerEndolaser) {\n  tipoFinal = 'o_que_trazer_endolaser';\n  mediaUrl = 'https://izzeiwtb.github.io/Painel-Beautes/o_que_trazer_endolaser.jpg';\n  fileName = 'o-que-trazer-endolaser-pro.jpg';\n  caption = '🎒 *O QUE TRAZER NO DIA DO SEU PROCEDIMENTO ENDOLASER PRO* 🎒\\n\\nOlá, ' + primeiroNome + '! Segue abaixo a sua arte com a lista do que trazer no dia do procedimento para que tudo seja o mais seguro, confortável e tranquilo! 💖👇\\u200B';\n  textoRecomendacoes = '🎒 *O QUE TRAZER NO DIA DO SEU ENDOLASER PRO* 🎒\\nDra. Amanda Barreto | Cirurgiã Dentista\\n\\n' +\n  'Para um procedimento mais seguro, confortável e tranquilo, separe com carinho os seguintes itens para levar no dia:\\n\\n' +\n  '1️⃣ *TOALHA DE BANHO:*\\n• Trazer uma toalha de banho limpa (não precisa ser nova).\\n\\n' +\n  '2️⃣ *2 GATORADES:*\\n• Trazer dois Gatorades (sabores de sua preferência).\\n\\n' +\n  '3️⃣ *BISCOITINHO DE SAL:*\\n• Trazer um biscoitinho de sal para o pós-procedimento.\\n\\n' +\n  '4️⃣ *ABSORVENTE GERIÁTRICO:*\\n• Trazer um pacote de absorvente geriátrico.\\n\\n' +\n  '5️⃣ *CINTA:*\\n• Trazer a cinta para o pós-procedimento.\\n\\n' +\n  '6️⃣ *ROLO DE FITA CREPE:*\\n• Trazer um rolo de fita crepe.\\n\\n' +\n  '7️⃣ *CALCINHA:*\\n• Trazer uma calcinha confortável.\\n\\n' +\n  '8️⃣ *VESTIDINHO FOLGADO:*\\n• Trazer um vestidinho folgado para ir embora, para maior conforto.\\n\\n' +\n  '💡 *DICA EXTRA:*\\n• Prefira roupas fáceis de vestir e confortáveis.\\n• Evite calças justas no dia do procedimento.\\n\\n' +\n  'Estamos ansiosos para te receber! Qualquer dúvida estamos à disposição! ✨💖\\u200B';\n} else if (isBotox) {\n  tipoFinal = 'botox';\n  mediaUrl = 'https://izzeiwtb.github.io/Painel-Beautes/pos_botox.jpg';\n  fileName = 'pos-toxina-botulinica.jpg';\n  caption = '✨ *RECOMENDAÇÕES PÓS-TOXINA BOTULÍNICA (BOTOX)* ✨\\n\\nOlá, ' + primeiroNome + '! Segue abaixo a sua arte com os cuidados essenciais para um resultado natural, seguro e duradouro! 💖👇\\u200B';\n  textoRecomendacoes = '💉 *CUIDADOS PÓS-TOXINA BOTULÍNICA (BOTOX)* 💉\\nDra. Amanda Barreto | Cirurgiã Dentista\\n\\n' +\n  '⏰ *NAS PRIMEIRAS 4 HORAS:*\\n• Não deitar e não abaixar a cabeça.\\n• Não massagear, não coçar e não pressionar a área tratada.\\n• Evite usar chapéus, bonés e faixas que pressionem a região.\\n• Não realizar atividade física intensa.\\n• Evite consumo de bebidas alcoólicas.\\n• Evite exposição ao calor (sauna, banho muito quente e sol intenso).\\n\\n' +\n  '⏰ *NAS PRIMEIRAS 24 HORAS:*\\n• Evite maquiagem na região tratada.\\n• Não utilize produtos que irritem a pele (esfoliantes, ácidos ou peelings).\\n• Evite viagens de avião.\\n• Evite procedimentos estéticos na região (tratamentos faciais, limpeza de pele, laser).\\n• Não faça massagem facial ou drenagem.\\n\\n' +\n  '🗓️ *DURANTE 7 DIAS:*\\n• Evite atividades físicas intensas.\\n• Evite exposição prolongada ao sol.\\n• Evite sauna, banho muito quente e banheira de hidromassagem.\\n• Evite deitar de bruços e dormir com o rosto pressionado no travesseiro.\\n\\n' +\n  '⏳ *EVOLUÇÃO DO RESULTADO:*\\n• *1º ao 3º dia:* Pequenas melhoras iniciais.\\n• *4º ao 14º dia:* Resultado progressivo e mais evidente.\\n• *Até 30 dias:* Resultado final.\\n• *Duração média:* 3 a 6 meses (varia conforme o organismo).\\n\\n' +\n  '🚨 *PROCURE A CLÍNICA IMEDIATAMENTE SE NOTAR:*\\n• Dor intensa e persistente\\n• Inchaço muito exagerado\\n• Assimetria importante\\n• Fraqueza muscular incomum (ex.: queda de pálpebra / ptose)\\n• Reação alérgica (vermelhidão, coceira intensa, bolhas, dificuldade para respirar)\\n\\n' +\n  'Estamos à disposição para qualquer dúvida! Tenha um pós-procedimento tranquilo! ✨💖\\u200B';\n} else if (isEndolaser) {\n  tipoFinal = 'endolaser';\n  mediaUrl = 'https://izzeiwtb.github.io/Painel-Beautes/pos_endolaser.jpg';\n  fileName = 'pos-endolaser-pro.jpg';\n  caption = '✨ *RECOMENDAÇÕES PÓS-ENDOLASER PRO* ✨\\n\\nOlá, ' + primeiroNome + '! Segue abaixo a sua arte com os cuidados essenciais para uma recuperação segura, confortável e com os melhores resultados! 💖👇\\u200B';\n  textoRecomendacoes = '⚡ *CUIDADOS PÓS-ENDOLASER PRO* ⚡\\nDra. Amanda Barreto | Cirurgiã Dentista\\n\\n' +\n  '1️⃣ *USO DA CINTA POR 45 DIAS:*\\n• Utilize a cinta compressiva diariamente por 45 dias.\\n• Retire somente para: atividade física, banhos e necessidades especiais pessoais.\\n\\n' +\n  '2️⃣ *COMPRESSA GELADA (PRIMEIROS 7 DIAS):*\\n• Faça compressa gelada 2 vezes ao dia durante os primeiros 7 dias.\\n• De 15 a 20 minutos cada aplicação (auxilia na redução do inchaço e desconforto).\\n• _Utilize uma toalha fina para proteger a pele._\\n\\n' +\n  '3️⃣ *DRENAGENS PÓS-ENDOLASER PRO:*\\n• Inicie as sessões de drenagem linfática com 10 dias de pós-procedimento.\\n• Ajuda na redução do inchaço, previne fibroses, melhora o contorno corporal e potencializa o resultado.\\n\\n' +\n  '📌 *OUTRAS RECOMENDAÇÕES IMPORTANTES:*\\n• *Hidratação:* Beba bastante água (2 a 3 litros por dia) para auxiliar na eliminação de toxinas e redução do inchaço.\\n• *Alimentação Saudável:* Dieta rica em proteínas, verduras, frutas e fibras. Evite excesso de sódio, industrializados e ultraprocessados.\\n• *Atividade Física:* Caminhadas leves permitidas após 48 horas. Atividades intensas apenas após liberação profissional.\\n• *Evite Álcool e Tabagismo:* Não consuma álcool por no mínimo 15 dias e não fume (prejudicam a cicatrização).\\n• *Evite Exposição Solar:* Sem sol direto nas áreas tratadas por pelo menos 30 dias. Use protetor solar sempre.\\n\\n' +\n  '🚫 *EVITE DURANTE A RECUPERAÇÃO:*\\n• *Calor excessivo:* Evite sauna, banhos muito quentes, banho de imersão e manta térmica por 30 dias.\\n• *Esforço físico intenso:* Evite exercícios de alto impacto nas primeiras 3 semanas.\\n• *Massagem na área tratada:* Não massageie sem orientação profissional.\\n• *Roupas muito justas:* Além da cinta, evite roupas que comprimam e dificultem a circulação.\\n• *Viagens longas:* Evite viagens longas nas primeiras 2 semanas.\\n\\n' +\n  '⏳ *EVOLUÇÃO ESPERADA:*\\n• *1º ao 7º dia:* Inchaço, sensibilidade e pequenos hematomas (normais).\\n• *10º dia:* Início das drenagens linfáticas.\\n• *2ª a 4ª semana:* Redução gradual do inchaço e melhora do contorno.\\n• *45 dias:* Uso da cinta até completar 45 dias.\\n• *Resultado final:* Entre 3 e 6 meses (continua evoluindo).\\n\\n' +\n  '🚨 *PROCURE A CLÍNICA IMEDIATAMENTE SE NOTAR:*\\n• Dor intensa e progressiva\\n• Inchaço que aumenta após o 3º dia\\n• Vermelhidão, calor local, secreção ou febre\\n• Assimetria importante\\n• Endurecimento excessivo (fibrose)\\n• Qualquer alteração que gere preocupação\\n\\n' +\n  'Estamos à disposição para qualquer suporte! Tenha uma excelente recuperação! ✨💖\\u200B';\n} else if (isCirurgiaFace) {\n  tipoFinal = 'cirurgia_face';\n  mediaUrl = 'https://izzeiwtb.github.io/Painel-Beautes/pos_cirurgia_face.jpg';\n  fileName = 'pos-cirurgia-estetica-face.jpg';\n  caption = '✨ *RECOMENDAÇÕES PÓS-CIRURGIA ESTÉTICA DA FACE* ✨\\n\\nOlá, ' + primeiroNome + '! Segue abaixo a sua arte com os cuidados essenciais para uma recuperação segura, confortável e com excelentes resultados! 💖👇\\u200B';\n  textoRecomendacoes = '🌸 *CUIDADOS PÓS-CIRURGIA ESTÉTICA DA FACE* 🌸\\nDra. Amanda Barreto | Cirurgiã Dentista\\n\\n' +\n  '1️⃣ *USO DA CINTA FACIAL:*\\n• Utilize a cinta facial pelo tempo orientado pelo profissional (geralmente uso contínuo por 45 dias).\\n• Retirar apenas para: banhos, atividade física e necessidades especiais pessoais.\\n\\n' +\n  '2️⃣ *COMPRESSA GELADA (PRIMEIRAS 48 A 72 HORAS):*\\n• Faça compressa gelada nas primeiras 48 a 72 horas.\\n• Utilize por 15 a 20 minutos a cada 2 horas (auxilia na redução do inchaço, dor e hematomas).\\n• _Use uma toalha fina entre o gelo e a pele._\\n\\n' +\n  '3️⃣ *DRENAGENS LINFÁTICAS:*\\n• Iniciar as drenagens com 10 dias de pós-procedimento.\\n• Reduz o inchaço, previne fibroses, acelera a recuperação e melhora o contorno facial.\\n• Realizar com profissional qualificado.\\n\\n' +\n  '📌 *OUTROS CUIDADOS IMPORTANTES:*\\n• *HIDRATAÇÃO:* Beba bastante água (2 a 3 litros por dia), auxiliando na eliminação de toxinas, redução do inchaço e cicatrização.\\n• *ALIMENTAÇÃO SAUDÁVEL:* Priorize alimentos ricos em proteínas, vitaminas e minerais. Evite industrializados, muito sódio, gorduras e açúcares em excesso.\\n• *REPOUSO:* Mantenha repouso nos primeiros dias, eleve a cabeça ao dormir (use 2 travesseiros) e evite esforços físicos.\\n• *ATIVIDADE FÍSICA:* Evite atividades físicas intensas por 30 a 45 dias. Caminhadas leves liberadas conforme orientação profissional.\\n• *EVITE ÁLCOOL E TABAGISMO:* Não faça uso de álcool por pelo menos 15 dias. Evite fumar (prejudica a cicatrização, aumenta o risco de complicações e compromete o resultado).\\n\\n' +\n  '🧴 *CUIDADOS NO DIA A DIA:*\\n• *EVITE EXPOSIÇÃO SOLAR:* Mantenha-se longe do sol direto por pelo menos 30 a 60 dias. Use protetor solar diariamente (FPS 50 ou superior).\\n• *HIGIENE:* Mantenha a região limpa conforme orientação profissional (limpeza delicada com produtos indicados).\\n• *MAQUIAGEM:* Evite o uso de maquiagem nos primeiros 10 a 15 dias ou conforme orientação.\\n• *NÃO MANIPULE A REGIÃO:* Evite tocar, pressionar, espremer ou massagear a área operada para não comprometer a cicatrização.\\n• *POSIÇÃO PARA DORMIR:* Durma de barriga para cima, com a cabeça elevada e evite apoiar o rosto no travesseiro.\\n\\n' +\n  '🚫 *EVITE TAMBÉM:*\\n• Usar óculos que pressionem a região (conforme liberação profissional).\\n• Exposição a calor excessivo (sauna, banhos muito quentes).\\n• Viagens de avião nas primeiras semanas (conforme orientação).\\n• Procedimentos estéticos na face sem liberação profissional.\\n\\n' +\n  '⏳ *EVOLUÇÃO ESPERADA:*\\n• *1º ao 3º dia:* Inchaço mais evidente, possíveis hematomas.\\n• *4º ao 7º dia:* Redução gradual do inchaço e melhora do desconforto.\\n• *10º dia:* Início das drenagens linfáticas.\\n• *2ª à 4ª semana:* Melhora significativa do contorno e cicatrização.\\n• *Resultado final:* Entre 3 e 6 meses (conforme o procedimento).\\n\\n' +\n  '🚨 *PROCURE A CLÍNICA IMEDIATAMENTE SE NOTAR:*\\n• Dor intensa e progressiva\\n• Aumento importante do inchaço\\n• Vermelhidão, calor local ou febre\\n• Secreção, mau cheiro ou sinais de infecção\\n• Sangramento persistente\\n• Assimetria importante\\n• Qualquer alteração que gere preocupação\\n\\n' +\n  'Estamos à disposição para qualquer suporte! Tenha uma excelente recuperação! ✨💖\\u200B';\n}\n\nreturn {\n  json: {\n    remoteJid,\n    nome: primeiroNome,\n    tipo: tipoFinal,\n    mediaUrl,\n    fileName,\n    caption,\n    textoRecomendacoes\n  }\n};"
+      },
+      "id": "f2b3c4d5-3333-4000-8000-000000000003",
+      "name": "Preparar Mensagem Pos-Preenchimento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        1140
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "send-image",
+        "instanceName": "Amanda",
+        "remoteJid": "={{ $json.remoteJid }}",
+        "media": "={{ $json.mediaUrl }}",
+        "mimetype": "image/jpeg",
+        "caption": "={{ $json.caption }}",
+        "fileName": "={{ $json.fileName }}",
+        "options_message": {},
+        "image": "={{ $json.mediaUrl }}",
+        "mediaUrl": "={{ $json.mediaUrl }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        780,
+        1140
+      ],
+      "id": "f2b3c4d5-4444-4000-8000-000000000004",
+      "name": "Enviar Arte Pos-Preenchimento",
+      "credentials": {
+        "evolutionApi": {
+          "id": "uOV6FFGhyIhaWfSX",
+          "name": "Evolution account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Amanda",
+        "remoteJid": "={{ $('Preparar Mensagem Pos-Preenchimento').item.json.remoteJid }}",
+        "messageText": "={{ $('Preparar Mensagem Pos-Preenchimento').item.json.textoRecomendacoes }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        1140
+      ],
+      "id": "f2b3c4d5-5555-4000-8000-000000000005",
+      "name": "Enviar Texto Pos-Preenchimento",
+      "credentials": {
+        "evolutionApi": {
+          "id": "uOV6FFGhyIhaWfSX",
+          "name": "Evolution account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Recomendações e arte de pós-preenchimento enviadas com sucesso para ' + $('Preparar Mensagem Pos-Preenchimento').item.json.nome + '!' }) }}",
+        "options": {}
+      },
+      "id": "f2b3c4d5-6666-4000-8000-000000000006",
+      "name": "Responder Pos-Preenchimento",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1300,
+        1140
+      ]
+    },
+    {
+      "id": "20c7df9e-4021-4632-8177-8e7756eb8a72",
+      "name": "Responder Sessão Inválida",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1850,
+        2220
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\":false,\"sucesso\":false,\"message\":\"Sua sessão expirou ou é inválida. Entre novamente no painel.\"}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "f04618c1-3df0-42e6-95eb-303edd531958",
+      "name": "Responder Dados Inválidos",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        600,
+        2400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\":false,\"sucesso\":false,\"message\":\"Dados inválidos ou agendamento não encontrado. Atualize o painel e confira o serviço e horário.\"}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    },
+    {
+      "id": "0cfc0874-5ac6-4fb1-9af9-da01be2692ee",
+      "name": "Responder Falha Servidor",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        850,
+        2400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\":false,\"sucesso\":false,\"message\":\"Não foi possível concluir a operação. Tente novamente.\"}",
+        "options": {
+          "responseCode": 502
+        }
+      }
+    },
+    {
+      "id": "83964b0d-3353-4453-a350-b02fb76c4e4d",
+      "name": "Responder Envio Pendente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1100,
+        2400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\":false,\"sucesso\":false,\"message\":\"Agendamento confirmado no sistema, mas o envio do WhatsApp falhou. Use Reenviar confirmação no painel.\"}",
+        "options": {
+          "responseCode": 502
+        }
+      }
+    },
+    {
+      "id": "04f0a70f-e729-411d-960d-dcd2ad23575d",
+      "name": "Responder Confirmação em Andamento",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1350,
+        2400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\":false,\"sucesso\":false,\"message\":\"A confirmação já está sendo enviada. Aguarde alguns segundos e atualize o painel.\"}",
+        "options": {
+          "responseCode": 409
+        }
+      }
+    },
+    {
+      "id": "fe37a789-2243-468f-ab69-760316479570",
+      "name": "Ler Recibo Confirmação",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        2400
+      ],
+      "parameters": {
+        "operation": "get",
+        "propertyName": "confirmation_sent",
+        "key": "={{ 'beautes:confirmation:sent:' + $('Marcar Estado Confirmado').item.json.external_message_id }}",
+        "keyType": "string",
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "df3d16b7-0715-4862-82ad-bbb05f6f8446",
+      "name": "Confirmação já enviada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1850,
+        2400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bbec6552-70e6-4726-9621-695f77fb354e",
+              "leftValue": "={{ $json.confirmation_sent === 'sent' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d4fe78ca-1b02-4565-ba5d-dab2e4fe30b6",
+      "name": "Reivindicar Envio Confirmação",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        600,
+        2580
+      ],
+      "parameters": {
+        "operation": "incr",
+        "key": "={{ 'beautes:confirmation:lock:' + $('Marcar Estado Confirmado').item.json.external_message_id }}",
+        "expire": true,
+        "ttl": 60
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "c07f6813-a319-4c30-bc5a-ea9b9481b75b",
+      "name": "Primeiro envio da confirmação?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        850,
+        2580
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "54e00a0f-77fb-40e9-8134-7364e07b444b",
+              "leftValue": "={{ Number($json['beautes:confirmation:lock:' + $('Marcar Estado Confirmado').item.json.external_message_id]) === 1 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ecd8df4b-5d37-4a88-a227-092127a06290",
+      "name": "Salvar Recibo Confirmação",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        2580
+      ],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'beautes:confirmation:sent:' + $('Marcar Estado Confirmado').item.json.external_message_id }}",
+        "value": "sent",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 2592000
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "ec28f78c-13d3-493a-91c4-543f03f62e63",
+      "name": "Liberar Envio Confirmação",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1350,
+        2580
+      ],
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ 'beautes:confirmation:lock:' + $('Marcar Estado Confirmado').item.json.external_message_id }}"
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "f59c8546-fe8e-4ec9-af60-4329b927198b",
+      "name": "Liberar Envio com Falha",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        2580
+      ],
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ 'beautes:confirmation:lock:' + $('Marcar Estado Confirmado').item.json.external_message_id }}"
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "e263f506-66c9-4662-b89f-66ea21b99d9e",
+      "name": "POST Salvar Contato",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        2580
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "beautes-painel-contato",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "eaf7e6b1-6bf6-4c43-adf8-796a0789d18b"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://foxsxchuwguyahimkxfd.supabase.co/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_0Z5oS5cxM6-JFX163b7U0Q_o5Ay3xCK"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9a42a5eb-2f35-4437-b476-d84537b8f164",
+      "name": "Validar Sessão Contato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        1900
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "014e3e4d-7487-4913-bd1b-eb3982778f1b",
+      "name": "Validar Alteração Contato",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        2760
+      ],
+      "parameters": {
+        "jsCode": "const body = $('POST Salvar Contato').item.json.body || {};\nconst action = String(body.action || '');\nlet phone = String(body.remote_jid || body.telefone || '').split('@')[0].replace(/\\D/g, '');\nif (phone.length === 10 || phone.length === 11) phone = '55' + phone;\nif (!/^55\\d{10,11}$/.test(phone)) throw new Error('Telefone brasileiro inválido.');\nconst remote_jid = phone + '@s.whatsapp.net';\nlet value;\nif (action === 'cadastro') {\n  const nome = String(body.nome || '').trim();\n  if (!nome || nome.length > 120) throw new Error('Nome inválido.');\n  value = { nome, telefone: phone, servico: String(body.servico || 'Não informado').trim().slice(0,120), status: 'Atendimento Inicial', data_solicitacao: new Date().toISOString() };\n} else if (action === 'status') {\n  const coluna_id = String(body.coluna_id || '');\n  if (!['novos_leads','qualificacao','aguardando_validacao'].includes(coluna_id)) throw new Error('Use a confirmação de agendamento para fechar o atendimento.');\n  value = { coluna_id };\n} else if (action === 'assinatura') {\n  const assinatura_url = String(body.assinatura_url || '');\n  if (assinatura_url.length > 700000 || !/^data:image\\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(assinatura_url)) throw new Error('Assinatura inválida.');\n  value = { assinatura_url, contrato_assinado: true };\n} else throw new Error('Ação inválida.');\nreturn { json: { remote_jid, storage_key: 'beautes:panel:contact:' + remote_jid + ':' + action, storage_value: JSON.stringify({ remote_jid, action, value, updated_at: new Date().toISOString() }) } };"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "dcaefa16-3ff4-43f4-a87f-6f4486cfe8f5",
+      "name": "Salvar Alteração Contato",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        2760
+      ],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.storage_key }}",
+        "value": "={{ $json.storage_value }}",
+        "keyType": "string",
+        "expire": false
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "d84fc724-542a-42e7-8154-28aecaca0ec5",
+      "name": "Responder Contato Salvo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1350,
+        2760
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, remote_jid: $(\"Validar Alteração Contato\").item.json.remote_jid } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "ca1ea182-c587-46a2-aee5-42da4bb66366",
+      "name": "Ler Alterações Painel",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        2760
+      ],
+      "parameters": {
+        "operation": "keys",
+        "keyPattern": "beautes:panel:contact:*",
+        "getValues": true
+      },
+      "credentials": {
+        "redis": {
+          "id": "zUFyNwK84LDFHxwn",
+          "name": "Redis account"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "5d911c97-dbe0-485a-bdcb-0f279d9b5bbd",
+      "name": "Montar Dados Painel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        2760
+      ],
+      "parameters": {
+        "jsCode": "const rows = $items('Buscar Pendentes (View)').map(x => x.json).filter(x => x.remote_jid);\nconst map = new Map(rows.map(row => [row.remote_jid, { ...row }]));\nconst meta = Object.values($json).flatMap(raw => { try { const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; return parsed?.remote_jid && parsed?.action && parsed?.value ? [parsed] : []; } catch (_) { return []; } });\nfor (const m of meta.filter(m => m.action === 'cadastro')) if (!map.has(m.remote_jid)) map.set(m.remote_jid, { ...m.value, remote_jid: m.remote_jid });\nfor (const m of meta) {\n  const row = map.get(m.remote_jid); if (!row) continue;\n  if (m.action === 'assinatura') Object.assign(row, m.value);\n  if (m.action === 'status') {\n    const newerMessage = row.data_solicitacao && m.updated_at && Date.parse(row.data_solicitacao) > Date.parse(m.updated_at);\n    if (!newerMessage) row.coluna_id = m.value.coluna_id;\n  }\n}\nfor (const row of map.values()) if (/agendamento confirmado|agendado|fechado/i.test(row.status || row.stage || '')) row.coluna_id = 'fechado';\nreturn { json: { records: [...map.values()].sort((a,b) => (Date.parse(b.data_solicitacao)||0) - (Date.parse(a.data_solicitacao)||0)) } };"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "6c4aba12-94d5-47d1-b00a-55e5ae06b60d",
+      "name": "Responder Painel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        600,
+        2940
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
     }
   ],
   "pinData": {},
@@ -151,7 +1080,25 @@
       "main": [
         [
           {
+            "node": "Validar Sessão GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Sessão GET": {
+      "main": [
+        [
+          {
             "node": "Buscar Pendentes (View)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Sessão Inválida",
             "type": "main",
             "index": 0
           }
@@ -162,7 +1109,25 @@
       "main": [
         [
           {
+            "node": "Validar Sessão POST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Sessão POST": {
+      "main": [
+        [
+          {
             "node": "Extrair Dados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Sessão Inválida",
             "type": "main",
             "index": 0
           }
@@ -173,7 +1138,50 @@
       "main": [
         [
           {
+            "node": "Buscar Agendamento Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Dados Inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Agendamento Pendente": {
+      "main": [
+        [
+          {
+            "node": "Validar Agendamento Salvo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Agendamento Salvo": {
+      "main": [
+        [
+          {
             "node": "Atualizar Banco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Dados Inválidos",
             "type": "main",
             "index": 0
           }
@@ -184,7 +1192,32 @@
       "main": [
         [
           {
-            "node": "Avisar Cliente Confirmado",
+            "node": "Preparar Mensagem Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Estado Confirmado": {
+      "main": [
+        [
+          {
+            "node": "Ler Recibo Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
             "type": "main",
             "index": 0
           }
@@ -195,7 +1228,483 @@
       "main": [
         [
           {
+            "node": "Salvar Recibo Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Liberar Envio com Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Mensagem Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Ler Estado Agendamento (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Estado Agendamento (API)": {
+      "main": [
+        [
+          {
+            "node": "Marcar Estado Confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Estado Confirmado": {
+      "main": [
+        [
+          {
+            "node": "Salvar Estado Confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Configurar Agenda": {
+      "main": [
+        [
+          {
+            "node": "Validar Sessão Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Sessão Agenda": {
+      "main": [
+        [
+          {
+            "node": "Processar Ação Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Sessão Inválida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Ação Agenda": {
+      "main": [
+        [
+          {
+            "node": "É Salvar Dia?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Dados Inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Salvar Dia?": {
+      "main": [
+        [
+          {
+            "node": "Salvar Dia no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler Dia no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Dia no Redis": {
+      "main": [
+        [
+          {
+            "node": "Responder Salvar Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Dia no Redis": {
+      "main": [
+        [
+          {
+            "node": "Responder Ler Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Enviar Pos-Preenchimento": {
+      "main": [
+        [
+          {
+            "node": "Validar Sessão Pos-Preenchimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Sessão Pos-Preenchimento": {
+      "main": [
+        [
+          {
+            "node": "Preparar Mensagem Pos-Preenchimento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Sessão Inválida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Mensagem Pos-Preenchimento": {
+      "main": [
+        [
+          {
+            "node": "Enviar Arte Pos-Preenchimento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Dados Inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Arte Pos-Preenchimento": {
+      "main": [
+        [
+          {
+            "node": "Enviar Texto Pos-Preenchimento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Texto Pos-Preenchimento": {
+      "main": [
+        [
+          {
+            "node": "Responder Pos-Preenchimento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendentes (View)": {
+      "main": [
+        [
+          {
+            "node": "Ler Alterações Painel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Recibo Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Confirmação já enviada?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Envio Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmação já enviada?": {
+      "main": [
+        [
+          {
             "node": "Responder ao HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reivindicar Envio Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reivindicar Envio Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Primeiro envio da confirmação?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Envio Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Primeiro envio da confirmação?": {
+      "main": [
+        [
+          {
+            "node": "Avisar Cliente Confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Confirmação em Andamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Recibo Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Liberar Envio Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Envio Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liberar Envio Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Responder ao HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Envio Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liberar Envio com Falha": {
+      "main": [
+        [
+          {
+            "node": "Responder Envio Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Envio Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Salvar Contato": {
+      "main": [
+        [
+          {
+            "node": "Validar Sessão Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Sessão Contato": {
+      "main": [
+        [
+          {
+            "node": "Validar Alteração Contato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Sessão Inválida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Alteração Contato": {
+      "main": [
+        [
+          {
+            "node": "Salvar Alteração Contato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Dados Inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Alteração Contato": {
+      "main": [
+        [
+          {
+            "node": "Responder Contato Salvo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Alterações Painel": {
+      "main": [
+        [
+          {
+            "node": "Montar Dados Painel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Dados Painel": {
+      "main": [
+        [
+          {
+            "node": "Responder Painel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha Servidor",
             "type": "main",
             "index": 0
           }
