@@ -25,6 +25,7 @@ A frase exata da captura e uma saudação genérica têm regressões automatizad
 - Agenda conta confirmações na data específica em São Paulo; não presume capacidade diária fixa. Atualização do dia ativo e tratamento da sessão foram ajustados.
 - Dependências CDN fixadas nas versões verificadas. CI executa testes antes de publicar os arquivos públicos no Pages.
 - Nove skills passaram a acompanhar o Git; referências ausentes foram adicionadas, instruções adaptadas aos comandos do projeto e uso dos quatro perfis de agentes documentado.
+- Publicação do commit `7fb1fbc` concluída com [CI aprovado](https://github.com/IzzeiWTB/Painel-Beautes/actions/runs/40387969287); HTML público comparado com o local. A configuração Pages ainda estava em modo legado por branch, disparando publicação concorrente. Foi alterada para `workflow`, conforme a [API oficial do GitHub](https://docs.github.com/en/rest/pages/pages#update-information-about-a-github-pages-site), para usar apenas o fluxo com testes e seleção dos arquivos públicos.
 
 ## Evidência e limites
 

@@ -61,7 +61,18 @@
   "panel": {
     "file": "Painel_Amanda.html",
     "sha256": "991dc68528e1589ec634207cedf70c033b37ea53205c353beec5c2c7782fc324",
-    "publication": "GitHub Pages CI on main"
+    "publication": "GitHub Pages CI on main",
+    "pagesMode": {
+      "previous": "legacy",
+      "current": "workflow",
+      "verifiedAt": "2026-10-26T19:35:46.303Z"
+    },
+    "verifiedRelease": {
+      "commit": "7fb1fbc666e3f22175072cb953976d40453e23d8",
+      "ci": "https://github.com/IzzeiWTB/Painel-Beautes/actions/runs/40387969287",
+      "ciResult": "success",
+      "publicHtmlMatchesLocal": true
+    }
   },
   "exclusions": [
     "Supabase anonymous access and team authorization retained by user request",
